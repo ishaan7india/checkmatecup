@@ -1,96 +1,120 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
-
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Christmas Light Theme */
+    --background: 30 50% 98%;
+    --foreground: 0 0% 15%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 30 40% 96%;
+    --card-foreground: 0 0% 15%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 30 50% 98%;
+    --popover-foreground: 0 0% 15%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 0 70% 45%;
+    --primary-foreground: 30 50% 98%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 140 45% 35%;
+    --secondary-foreground: 30 50% 98%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 30 20% 90%;
+    --muted-foreground: 0 0% 40%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 45 90% 55%;
+    --accent-foreground: 0 0% 15%;
 
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 30 50% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 0 25% 85%;
+    --input: 30 20% 92%;
+    --ring: 0 70% 45%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    --sidebar-background: 0 0% 98%;
+    /* Christmas specific */
+    --christmas-red: 0 70% 45%;
+    --christmas-green: 140 45% 35%;
+    --christmas-gold: 45 90% 55%;
+    --christmas-cream: 30 50% 98%;
+    --snow-white: 0 0% 100%;
+    --candy-stripe: linear-gradient(135deg, hsl(0 70% 45%) 25%, hsl(0 0% 100%) 25%, hsl(0 0% 100%) 50%, hsl(0 70% 45%) 50%, hsl(0 70% 45%) 75%, hsl(0 0% 100%) 75%);
+    
+    /* Shadows & Effects */
+    --shadow-festive: 0 4px 20px -5px hsl(0 70% 45% / 0.3);
+    --shadow-glow: 0 0 30px hsl(45 90% 55% / 0.4);
+    --shadow-card: 0 8px 32px -8px hsl(0 0% 0% / 0.1);
 
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 30 40% 96%;
+    --sidebar-foreground: 0 0% 15%;
+    --sidebar-primary: 0 70% 45%;
+    --sidebar-primary-foreground: 30 50% 98%;
+    --sidebar-accent: 140 45% 35%;
+    --sidebar-accent-foreground: 30 50% 98%;
+    --sidebar-border: 0 25% 85%;
+    --sidebar-ring: 0 70% 45%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    /* Gamer Dark Theme */
+    --background: 240 15% 5%;
+    --foreground: 0 0% 95%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 240 15% 8%;
+    --card-foreground: 0 0% 95%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 240 15% 8%;
+    --popover-foreground: 0 0% 95%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 185 100% 50%;
+    --primary-foreground: 240 15% 5%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 280 80% 60%;
+    --secondary-foreground: 0 0% 95%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 240 10% 15%;
+    --muted-foreground: 0 0% 60%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 320 90% 60%;
+    --accent-foreground: 0 0% 95%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 95%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --border: 240 10% 20%;
+    --input: 240 10% 15%;
+    --ring: 185 100% 50%;
+
+    /* Gamer specific */
+    --neon-cyan: 185 100% 50%;
+    --neon-purple: 280 80% 60%;
+    --neon-magenta: 320 90% 60%;
+    --dark-base: 240 15% 5%;
+    --glass-bg: 240 15% 10%;
+    
+    /* RGB breathing animation colors */
+    --rgb-1: hsl(185, 100%, 50%);
+    --rgb-2: hsl(280, 80%, 60%);
+    --rgb-3: hsl(320, 90%, 60%);
+
+    /* Shadows & Effects */
+    --shadow-neon: 0 0 30px hsl(185 100% 50% / 0.5);
+    --shadow-glow-purple: 0 0 40px hsl(280 80% 60% / 0.4);
+    --shadow-card: 0 8px 32px -8px hsl(0 0% 0% / 0.5);
+
+    --sidebar-background: 240 15% 8%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 185 100% 50%;
+    --sidebar-primary-foreground: 240 15% 5%;
+    --sidebar-accent: 280 80% 60%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 240 10% 20%;
+    --sidebar-ring: 185 100% 50%;
   }
 }
 
@@ -100,6 +124,215 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Rajdhani', 'Playfair Display', serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Cinzel', 'Orbitron', serif;
+  }
+
+  .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+    font-family: 'Orbitron', sans-serif;
+  }
+
+  .dark body {
+    font-family: 'Rajdhani', sans-serif;
+  }
+}
+
+@layer utilities {
+  /* Snow Animation */
+  .snowflake {
+    position: fixed;
+    color: white;
+    font-size: 1em;
+    pointer-events: none;
+    z-index: 1000;
+    animation: snowfall linear infinite;
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
+  }
+
+  @keyframes snowfall {
+    0% {
+      transform: translateY(-100vh) rotate(0deg);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(100vh) rotate(360deg);
+      opacity: 0.3;
+    }
+  }
+
+  /* RGB Breathing Border */
+  .rgb-border {
+    position: relative;
+  }
+
+  .rgb-border::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    padding: 2px;
+    background: linear-gradient(
+      var(--rgb-angle, 0deg),
+      var(--rgb-1),
+      var(--rgb-2),
+      var(--rgb-3),
+      var(--rgb-1)
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: rgb-rotate 4s linear infinite;
+  }
+
+  @keyframes rgb-rotate {
+    0% {
+      --rgb-angle: 0deg;
+    }
+    100% {
+      --rgb-angle: 360deg;
+    }
+  }
+
+  @property --rgb-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+  }
+
+  /* Glassmorphism */
+  .glass {
+    background: hsl(var(--glass-bg) / 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--border) / 0.3);
+  }
+
+  /* Neon Glow Text */
+  .neon-text {
+    text-shadow: 
+      0 0 5px currentColor,
+      0 0 10px currentColor,
+      0 0 20px currentColor,
+      0 0 40px currentColor;
+  }
+
+  /* Candy Cane Divider */
+  .candy-divider {
+    height: 8px;
+    background-size: 20px 20px;
+    background-image: var(--candy-stripe);
+    border-radius: 4px;
+  }
+
+  /* Festive Glow */
+  .festive-glow {
+    box-shadow: var(--shadow-festive);
+  }
+
+  .gold-glow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  /* Card Hover Effects */
+  .card-hover {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-card);
+  }
+
+  .dark .card-hover:hover {
+    box-shadow: var(--shadow-neon);
+  }
+
+  /* Christmas Lights */
+  .christmas-lights {
+    position: relative;
+  }
+
+  .christmas-lights::before {
+    content: '💡 💡 💡 💡 💡 💡 💡';
+    position: absolute;
+    top: -20px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    letter-spacing: 20px;
+    animation: lights-blink 1.5s ease-in-out infinite alternate;
+    filter: drop-shadow(0 0 10px hsl(45 90% 55%));
+  }
+
+  @keyframes lights-blink {
+    0%, 100% {
+      opacity: 1;
+      filter: drop-shadow(0 0 15px hsl(45 90% 55%));
+    }
+    50% {
+      opacity: 0.7;
+      filter: drop-shadow(0 0 5px hsl(45 90% 55%));
+    }
+  }
+
+  /* Trophy Animations */
+  @keyframes trophy-shine {
+    0%, 100% {
+      filter: brightness(1) drop-shadow(0 0 10px hsl(45 90% 55% / 0.5));
+    }
+    50% {
+      filter: brightness(1.3) drop-shadow(0 0 20px hsl(45 90% 55% / 0.8));
+    }
+  }
+
+  .trophy-shine {
+    animation: trophy-shine 2s ease-in-out infinite;
+  }
+
+  /* Victory Confetti Animation */
+  @keyframes confetti-fall {
+    0% {
+      transform: translateY(-100%) rotate(0deg);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(100vh) rotate(720deg);
+      opacity: 0;
+    }
+  }
+
+  /* Pulse Ring */
+  @keyframes pulse-ring {
+    0% {
+      transform: scale(0.8);
+      opacity: 0.8;
+    }
+    100% {
+      transform: scale(1.5);
+      opacity: 0;
+    }
+  }
+
+  .pulse-ring::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 2px solid currentColor;
+    animation: pulse-ring 1.5s ease-out infinite;
+  }
+
+  /* Chess piece hover */
+  .chess-hover {
+    transition: transform 0.2s ease, filter 0.2s ease;
+  }
+
+  .chess-hover:hover {
+    transform: scale(1.05);
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
   }
 }
