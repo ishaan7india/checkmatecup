@@ -8,6 +8,12 @@ import { Navbar } from "@/components/Navbar";
 import { SnowEffect } from "@/components/SnowEffect";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import Profile from "./pages/Profile";
+import Standings from "./pages/Standings";
+import Champions from "./pages/Champions";
+import Games from "./pages/Games";
+import Game from "./pages/Game";
+import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -20,11 +26,23 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <SnowEffect />
-          <Navbar />
           <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="*" element={<NotFound />} />
+            <Route path="/admin" element={<Admin />} />
+            <Route path="*" element={
+              <>
+                <Navbar />
+                <Routes>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/standings" element={<Standings />} />
+                  <Route path="/champions" element={<Champions />} />
+                  <Route path="/games" element={<Games />} />
+                  <Route path="/game/:gameId" element={<Game />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </>
+            } />
           </Routes>
         </BrowserRouter>
       </TooltipProvider>

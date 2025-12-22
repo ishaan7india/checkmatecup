@@ -1,0 +1,384 @@
+import { useState, useEffect, useCallback } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { Chess } from "chess.js";
+import { Chessboard } from "react-chessboard";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
+import { Clock, Flag, RotateCcw, Loader2 } from "lucide-react";
+import { PlayerAvatar } from "@/components/PlayerAvatar";
+
+interface GameData {
+  id: string;
+  fen: string;
+  pgn: string | null;
+  result: string;
+  white_player_id: string;
+  black_player_id: string;
+  white_time_remaining: number | null;
+  black_time_remaining: number | null;
+  tournament_id: string;
+  round: number;
+}
+
+interface Player {
+  id: string;
+  username: string;
+  full_name: string;
+  avatar_url: string | null;
+  avatar_initials: string | null;
+}
+
+const Game = () => {
+  const { gameId } = useParams<{ gameId: string }>();
+  const { profile } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+
+  const [game, setGame] = useState<Chess>(new Chess());
+  const [gameData, setGameData] = useState<GameData | null>(null);
+  const [whitePlayer, setWhitePlayer] = useState<Player | null>(null);
+  const [blackPlayer, setBlackPlayer] = useState<Player | null>(null);
+  const [whiteTime, setWhiteTime] = useState(600);
+  const [blackTime, setBlackTime] = useState(600);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const isWhite = profile?.id === gameData?.white_player_id;
+  const isBlack = profile?.id === gameData?.black_player_id;
+  const isPlayer = isWhite || isBlack;
+  const isMyTurn = (game.turn() === 'w' && isWhite) || (game.turn() === 'b' && isBlack);
+
+  useEffect(() => {
+    if (gameId) {
+      fetchGame();
+      subscribeToGame();
+    }
+  }, [gameId]);
+
+  useEffect(() => {
+    if (gameData?.result === 'in_progress') {
+      const interval = setInterval(() => {
+        if (game.turn() === 'w') {
+          setWhiteTime(prev => Math.max(0, prev - 1));
+        } else {
+          setBlackTime(prev => Math.max(0, prev - 1));
+        }
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [gameData?.result, game]);
+
+  const fetchGame = async () => {
+    if (!gameId) return;
+
+    const { data } = await supabase
+      .from('games')
+      .select('*')
+      .eq('id', gameId)
+      .single();
+
+    if (data) {
+      setGameData(data as GameData);
+      const newGame = new Chess();
+      if (data.fen) {
+        newGame.load(data.fen);
+      }
+      setGame(newGame);
+      setWhiteTime(data.white_time_remaining || 600);
+      setBlackTime(data.black_time_remaining || 600);
+
+      // Fetch players
+      const { data: white } = await supabase
+        .from('profiles')
+        .select('id, username, full_name, avatar_url, avatar_initials')
+        .eq('id', data.white_player_id)
+        .single();
+      
+      const { data: black } = await supabase
+        .from('profiles')
+        .select('id, username, full_name, avatar_url, avatar_initials')
+        .eq('id', data.black_player_id)
+        .single();
+
+      if (white) setWhitePlayer(white);
+      if (black) setBlackPlayer(black);
+    }
+    setIsLoading(false);
+  };
+
+  const subscribeToGame = () => {
+    const channel = supabase
+      .channel(`game-${gameId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'games',
+        filter: `id=eq.${gameId}`,
+      }, (payload) => {
+        const data = payload.new as GameData;
+        setGameData(data);
+        const newGame = new Chess();
+        if (data.fen) {
+          newGame.load(data.fen);
+        }
+        setGame(newGame);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  };
+
+  const onDrop = useCallback(async (sourceSquare: string, targetSquare: string) => {
+    if (!isMyTurn || !gameData || gameData.result !== 'in_progress') return false;
+
+    try {
+      const move = game.move({
+        from: sourceSquare,
+        to: targetSquare,
+        promotion: 'q',
+      });
+
+      if (!move) return false;
+
+      const newFen = game.fen();
+      const newPgn = game.pgn();
+
+      // Check for game end
+      let result: string = 'in_progress';
+      if (game.isCheckmate()) {
+        result = game.turn() === 'w' ? 'black_wins' : 'white_wins';
+      } else if (game.isDraw()) {
+        result = 'draw';
+      }
+
+      await supabase
+        .from('games')
+        .update({
+          fen: newFen,
+          pgn: newPgn,
+          result: result as any,
+          white_time_remaining: whiteTime,
+          black_time_remaining: blackTime,
+          ...(result !== 'in_progress' ? { ended_at: new Date().toISOString() } : {}),
+        })
+        .eq('id', gameId);
+
+      if (result !== 'in_progress') {
+        await updatePlayerScores(result);
+        toast({ title: "Game Over!", description: `Result: ${result.replace(/_/g, ' ')}` });
+      }
+
+      return true;
+    } catch {
+      return false;
+    }
+  }, [game, isMyTurn, gameData, gameId, whiteTime, blackTime]);
+
+  const updatePlayerScores = async (result: string) => {
+    if (!gameData) return;
+
+    let whiteScore = 0;
+    let blackScore = 0;
+
+    if (result === 'white_wins') {
+      whiteScore = 1;
+    } else if (result === 'black_wins') {
+      blackScore = 1;
+    } else if (result === 'draw') {
+      whiteScore = 0.5;
+      blackScore = 0.5;
+    }
+
+    // Update tournament_players scores
+    const { data: whiteTp } = await supabase
+      .from('tournament_players')
+      .select('score')
+      .eq('tournament_id', gameData.tournament_id)
+      .eq('player_id', gameData.white_player_id)
+      .single();
+
+    const { data: blackTp } = await supabase
+      .from('tournament_players')
+      .select('score')
+      .eq('tournament_id', gameData.tournament_id)
+      .eq('player_id', gameData.black_player_id)
+      .single();
+
+    if (whiteTp) {
+      await supabase
+        .from('tournament_players')
+        .update({ score: Number(whiteTp.score) + whiteScore })
+        .eq('tournament_id', gameData.tournament_id)
+        .eq('player_id', gameData.white_player_id);
+    }
+
+    if (blackTp) {
+      await supabase
+        .from('tournament_players')
+        .update({ score: Number(blackTp.score) + blackScore })
+        .eq('tournament_id', gameData.tournament_id)
+        .eq('player_id', gameData.black_player_id);
+    }
+  };
+
+  const resign = async () => {
+    if (!gameData || !isPlayer) return;
+    
+    const result = isWhite ? 'black_wins' : 'white_wins';
+    
+    await supabase
+      .from('games')
+      .update({
+        result: result as any,
+        ended_at: new Date().toISOString(),
+      })
+      .eq('id', gameId);
+
+    await updatePlayerScores(result);
+    toast({ title: "You resigned", description: "Better luck next time!" });
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!gameData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-muted-foreground">Game not found</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background p-4">
+      <div className="max-w-4xl mx-auto">
+        <div className="grid md:grid-cols-3 gap-6">
+          {/* Chessboard */}
+          <div className="md:col-span-2">
+            <Card className="p-4">
+              {/* Black Player */}
+              <div className="flex items-center justify-between mb-4 p-3 bg-muted rounded-lg">
+                <div className="flex items-center gap-3">
+                  <PlayerAvatar
+                    avatarUrl={blackPlayer?.avatar_url}
+                    initials={blackPlayer?.avatar_initials}
+                    name={blackPlayer?.full_name}
+                    size="sm"
+                  />
+                  <div>
+                    <p className="font-bold">{blackPlayer?.username || 'Black'}</p>
+                    <p className="text-xs text-muted-foreground">Black</p>
+                  </div>
+                </div>
+                <div className={`flex items-center gap-2 px-3 py-1 rounded-lg ${game.turn() === 'b' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                  <Clock className="h-4 w-4" />
+                  <span className="font-mono font-bold">{formatTime(blackTime)}</span>
+                </div>
+              </div>
+
+              <Chessboard
+                id="game-board"
+                position={game.fen()}
+                onPieceDrop={onDrop}
+                boardOrientation={isBlack ? 'black' : 'white'}
+                arePiecesDraggable={isPlayer && isMyTurn && gameData.result === 'in_progress'}
+              />
+
+              {/* White Player */}
+              <div className="flex items-center justify-between mt-4 p-3 bg-muted rounded-lg">
+                <div className="flex items-center gap-3">
+                  <PlayerAvatar
+                    avatarUrl={whitePlayer?.avatar_url}
+                    initials={whitePlayer?.avatar_initials}
+                    name={whitePlayer?.full_name}
+                    size="sm"
+                  />
+                  <div>
+                    <p className="font-bold">{whitePlayer?.username || 'White'}</p>
+                    <p className="text-xs text-muted-foreground">White</p>
+                  </div>
+                </div>
+                <div className={`flex items-center gap-2 px-3 py-1 rounded-lg ${game.turn() === 'w' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                  <Clock className="h-4 w-4" />
+                  <span className="font-mono font-bold">{formatTime(whiteTime)}</span>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* Game Info */}
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Game Status</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="text-center py-4 bg-muted rounded-lg">
+                  {gameData.result === 'in_progress' ? (
+                    <>
+                      <p className="font-bold text-lg">
+                        {game.turn() === 'w' ? "White's Turn" : "Black's Turn"}
+                      </p>
+                      {isMyTurn && <p className="text-sm text-primary">Your move!</p>}
+                    </>
+                  ) : (
+                    <p className="font-bold text-lg capitalize">
+                      {gameData.result.replace(/_/g, ' ')}
+                    </p>
+                  )}
+                </div>
+
+                {game.isCheck() && gameData.result === 'in_progress' && (
+                  <div className="p-3 bg-destructive/10 text-destructive rounded-lg text-center font-bold">
+                    CHECK!
+                  </div>
+                )}
+
+                {isPlayer && gameData.result === 'in_progress' && (
+                  <Button variant="destructive" className="w-full" onClick={resign}>
+                    <Flag className="h-4 w-4 mr-2" />
+                    Resign
+                  </Button>
+                )}
+
+                <Button variant="outline" className="w-full" onClick={() => navigate('/standings')}>
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Back to Standings
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Move History */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Moves</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-sm font-mono bg-muted p-3 rounded-lg max-h-48 overflow-y-auto">
+                  {game.pgn() || 'No moves yet'}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Game;
