@@ -7,11 +7,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Bot, RotateCcw, Flag, Loader2, Sparkles } from "lucide-react";
+import { useChessSounds } from "@/hooks/useChessSounds";
+import { PromotionDialog } from "@/components/PromotionDialog";
+import { AICommentary } from "@/components/AICommentary";
 
 type Difficulty = "beginner" | "intermediate" | "advanced" | "master";
+type PromotionPiece = 'q' | 'r' | 'b' | 'n';
+
+interface PendingPromotion {
+  from: Square;
+  to: Square;
+}
 
 const Practice = () => {
   const { toast } = useToast();
+  const sounds = useChessSounds();
   const [game, setGame] = useState<Chess>(new Chess());
   const [difficulty, setDifficulty] = useState<Difficulty>("intermediate");
   const [playerColor, setPlayerColor] = useState<"white" | "black">("white");
@@ -20,6 +30,25 @@ const Practice = () => {
   const [moveHistory, setMoveHistory] = useState<string[]>([]);
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [legalMoves, setLegalMoves] = useState<Square[]>([]);
+  const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null);
+  const [lastMove, setLastMove] = useState<string | null>(null);
+
+  const playMoveSound = useCallback((move: { captured?: string; san: string; flags: string }) => {
+    if (move.san.includes('#')) {
+      sounds.playCheckmate();
+    } else if (move.san.includes('+')) {
+      sounds.playCheck();
+    } else if (move.captured) {
+      sounds.playCapture();
+    } else if (move.flags.includes('k') || move.flags.includes('q')) {
+      sounds.playCastle();
+    } else if (move.san.includes('=')) {
+      sounds.playPromotion();
+    } else {
+      sounds.playMove();
+    }
+  }, [sounds]);
+
   const checkGameEnd = useCallback((currentGame: Chess) => {
     if (currentGame.isCheckmate()) {
       const winner = currentGame.turn() === 'w' ? 'black' : 'white';
@@ -56,20 +85,18 @@ const Practice = () => {
 
       if (error) {
         console.error("Bot error:", error);
-        toast({ 
-          title: "Bot Error", 
-          description: "Failed to get bot move. Making random move.",
-          variant: "destructive"
-        });
-        // Fallback to random legal move
-        const moves = currentGame.moves();
+        const moves = currentGame.moves({ verbose: true });
         if (moves.length > 0) {
           const randomMove = moves[Math.floor(Math.random() * moves.length)];
           const newGame = new Chess(currentGame.fen());
-          newGame.move(randomMove);
-          setGame(newGame);
-          setMoveHistory(prev => [...prev, randomMove]);
-          checkGameEnd(newGame);
+          const move = newGame.move(randomMove);
+          if (move) {
+            setGame(newGame);
+            setMoveHistory(prev => [...prev, move.san]);
+            setLastMove(move.san);
+            playMoveSound(move);
+            checkGameEnd(newGame);
+          }
         }
         setIsThinking(false);
         return;
@@ -79,30 +106,34 @@ const Practice = () => {
       if (moveStr) {
         const newGame = new Chess(currentGame.fen());
         try {
-          // Try UCI format first
           const move = newGame.move({
             from: moveStr.slice(0, 2),
             to: moveStr.slice(2, 4),
-            promotion: moveStr[4] || undefined,
+            promotion: moveStr[4] || 'q',
           });
           
           if (move) {
             setGame(newGame);
             setMoveHistory(prev => [...prev, move.san]);
+            setLastMove(move.san);
+            playMoveSound(move);
             checkGameEnd(newGame);
           } else {
             throw new Error("Invalid move");
           }
         } catch {
-          // Fallback to random move if AI returns invalid move
-          const moves = currentGame.moves();
+          const moves = currentGame.moves({ verbose: true });
           if (moves.length > 0) {
             const randomMove = moves[Math.floor(Math.random() * moves.length)];
             newGame.load(currentGame.fen());
-            newGame.move(randomMove);
-            setGame(newGame);
-            setMoveHistory(prev => [...prev, randomMove]);
-            checkGameEnd(newGame);
+            const move = newGame.move(randomMove);
+            if (move) {
+              setGame(newGame);
+              setMoveHistory(prev => [...prev, move.san]);
+              setLastMove(move.san);
+              playMoveSound(move);
+              checkGameEnd(newGame);
+            }
           }
         }
       }
@@ -111,98 +142,35 @@ const Practice = () => {
     } finally {
       setIsThinking(false);
     }
-  }, [difficulty, playerColor, checkGameEnd, toast]);
+  }, [difficulty, playerColor, checkGameEnd, playMoveSound]);
 
-  // Bot makes first move if player is black
   useEffect(() => {
     if (playerColor === 'black' && game.history().length === 0 && gameStatus === 'playing') {
+      sounds.playGameStart();
       makeBotMove(game);
     }
-  }, [playerColor, game, gameStatus, makeBotMove]);
+  }, [playerColor, game, gameStatus, makeBotMove, sounds]);
 
-  const getMoveOptions = useCallback((square: Square) => {
-    const moves = game.moves({ square, verbose: true });
-    return moves.map(move => move.to as Square);
+  const isPromotionMove = useCallback((from: Square, to: Square): boolean => {
+    const piece = game.get(from);
+    if (!piece || piece.type !== 'p') return false;
+    const targetRank = to[1];
+    return (piece.color === 'w' && targetRank === '8') || (piece.color === 'b' && targetRank === '1');
   }, [game]);
 
-  const onSquareClick = useCallback((square: Square) => {
-    if (gameStatus !== "playing" || isThinking) return;
-    
-    const isPlayerTurn = (game.turn() === 'w' && playerColor === 'white') || 
-                         (game.turn() === 'b' && playerColor === 'black');
-    if (!isPlayerTurn) return;
-
-    // If clicking on a legal move square, make the move
-    if (selectedSquare && legalMoves.includes(square)) {
-      const newGame = new Chess(game.fen());
-      const move = newGame.move({
-        from: selectedSquare,
-        to: square,
-        promotion: 'q',
-      });
-
-      if (move) {
-        setGame(newGame);
-        setMoveHistory(prev => [...prev, move.san]);
-        setSelectedSquare(null);
-        setLegalMoves([]);
-        
-        if (!checkGameEnd(newGame)) {
-          setTimeout(() => makeBotMove(newGame), 500);
-        }
-      }
-      return;
-    }
-
-    // Select a new piece
-    const piece = game.get(square);
-    if (piece && ((piece.color === 'w' && playerColor === 'white') || (piece.color === 'b' && playerColor === 'black'))) {
-      setSelectedSquare(square);
-      setLegalMoves(getMoveOptions(square));
-    } else {
-      setSelectedSquare(null);
-      setLegalMoves([]);
-    }
-  }, [game, playerColor, gameStatus, isThinking, selectedSquare, legalMoves, checkGameEnd, makeBotMove, getMoveOptions]);
-
-  const onPieceDragBegin = useCallback((_piece: string, sourceSquare: Square) => {
-    if (gameStatus !== "playing" || isThinking) return false;
-    
-    const isPlayerTurn = (game.turn() === 'w' && playerColor === 'white') || 
-                         (game.turn() === 'b' && playerColor === 'black');
-    if (!isPlayerTurn) return false;
-
-    setSelectedSquare(sourceSquare);
-    setLegalMoves(getMoveOptions(sourceSquare));
-    return true;
-  }, [game, playerColor, gameStatus, isThinking, getMoveOptions]);
-
-  const onPieceDragEnd = useCallback(() => {
-    setSelectedSquare(null);
-    setLegalMoves([]);
-  }, []);
-
-  const onDrop = useCallback((sourceSquare: string, targetSquare: string): boolean => {
-    if (gameStatus !== "playing" || isThinking) return false;
-    
-    const isPlayerTurn = (game.turn() === 'w' && playerColor === 'white') || 
-                         (game.turn() === 'b' && playerColor === 'black');
-    if (!isPlayerTurn) return false;
-
+  const executeMove = useCallback((from: Square, to: Square, promotion: PromotionPiece = 'q') => {
     try {
       const newGame = new Chess(game.fen());
-      const move = newGame.move({
-        from: sourceSquare,
-        to: targetSquare,
-        promotion: 'q',
-      });
+      const move = newGame.move({ from, to, promotion });
 
       if (!move) return false;
 
       setGame(newGame);
       setMoveHistory(prev => [...prev, move.san]);
+      setLastMove(move.san);
       setSelectedSquare(null);
       setLegalMoves([]);
+      playMoveSound(move);
       
       if (!checkGameEnd(newGame)) {
         setTimeout(() => makeBotMove(newGame), 500);
@@ -212,9 +180,86 @@ const Practice = () => {
     } catch {
       return false;
     }
-  }, [game, playerColor, gameStatus, isThinking, checkGameEnd, makeBotMove]);
+  }, [game, checkGameEnd, makeBotMove, playMoveSound]);
 
-  // Custom square styles for highlighting
+  const handlePromotionSelect = useCallback((piece: PromotionPiece) => {
+    if (pendingPromotion) {
+      executeMove(pendingPromotion.from, pendingPromotion.to, piece);
+      setPendingPromotion(null);
+    }
+  }, [pendingPromotion, executeMove]);
+
+  const getMoveOptions = useCallback((square: Square) => {
+    const moves = game.moves({ square, verbose: true });
+    return moves.map(move => move.to as Square);
+  }, [game]);
+
+  const onSquareClick = useCallback((square: Square) => {
+    if (gameStatus !== "playing" || isThinking || pendingPromotion) return;
+    
+    const isPlayerTurn = (game.turn() === 'w' && playerColor === 'white') || 
+                         (game.turn() === 'b' && playerColor === 'black');
+    if (!isPlayerTurn) return;
+
+    if (selectedSquare && legalMoves.includes(square)) {
+      if (isPromotionMove(selectedSquare, square)) {
+        setPendingPromotion({ from: selectedSquare, to: square });
+        return;
+      }
+      executeMove(selectedSquare, square);
+      return;
+    }
+
+    const piece = game.get(square);
+    if (piece && ((piece.color === 'w' && playerColor === 'white') || (piece.color === 'b' && playerColor === 'black'))) {
+      setSelectedSquare(square);
+      setLegalMoves(getMoveOptions(square));
+    } else {
+      setSelectedSquare(null);
+      setLegalMoves([]);
+    }
+  }, [game, playerColor, gameStatus, isThinking, selectedSquare, legalMoves, pendingPromotion, isPromotionMove, executeMove, getMoveOptions]);
+
+  const onPieceDragBegin = useCallback((_piece: string, sourceSquare: Square) => {
+    if (gameStatus !== "playing" || isThinking || pendingPromotion) return false;
+    
+    const isPlayerTurn = (game.turn() === 'w' && playerColor === 'white') || 
+                         (game.turn() === 'b' && playerColor === 'black');
+    if (!isPlayerTurn) return false;
+
+    setSelectedSquare(sourceSquare);
+    setLegalMoves(getMoveOptions(sourceSquare));
+    return true;
+  }, [game, playerColor, gameStatus, isThinking, pendingPromotion, getMoveOptions]);
+
+  const onPieceDragEnd = useCallback(() => {
+    setSelectedSquare(null);
+    setLegalMoves([]);
+  }, []);
+
+  const onDrop = useCallback((sourceSquare: string, targetSquare: string): boolean => {
+    if (gameStatus !== "playing" || isThinking || pendingPromotion) return false;
+    
+    const isPlayerTurn = (game.turn() === 'w' && playerColor === 'white') || 
+                         (game.turn() === 'b' && playerColor === 'black');
+    if (!isPlayerTurn) return false;
+
+    const from = sourceSquare as Square;
+    const to = targetSquare as Square;
+
+    // Check if this is a legal move
+    const moves = game.moves({ square: from, verbose: true });
+    const isLegal = moves.some(m => m.to === to);
+    if (!isLegal) return false;
+
+    if (isPromotionMove(from, to)) {
+      setPendingPromotion({ from, to });
+      return true;
+    }
+
+    return executeMove(from, to);
+  }, [game, playerColor, gameStatus, isThinking, pendingPromotion, isPromotionMove, executeMove]);
+
   const customSquareStyles = useMemo(() => {
     const styles: Record<string, React.CSSProperties> = {};
     
@@ -242,6 +287,9 @@ const Practice = () => {
     setMoveHistory([]);
     setSelectedSquare(null);
     setLegalMoves([]);
+    setLastMove(null);
+    setPendingPromotion(null);
+    sounds.playGameStart();
     if (playerColor === 'black') {
       setTimeout(() => {
         const newGame = new Chess();
@@ -270,6 +318,12 @@ const Practice = () => {
 
   return (
     <div className="min-h-screen bg-background p-4">
+      <PromotionDialog
+        isOpen={!!pendingPromotion}
+        color={playerColor}
+        onSelect={handlePromotionSelect}
+      />
+      
       <div className="max-w-5xl mx-auto">
         <div className="text-center mb-6">
           <h1 className="text-3xl font-display font-bold text-foreground flex items-center justify-center gap-3">
@@ -283,10 +337,8 @@ const Practice = () => {
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
-          {/* Chessboard */}
           <div className="md:col-span-2">
             <Card className="p-4">
-              {/* Bot info */}
               <div className="flex items-center justify-between mb-4 p-3 bg-muted rounded-lg">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
@@ -315,7 +367,7 @@ const Practice = () => {
                   onPieceDragBegin={onPieceDragBegin}
                   onPieceDragEnd={onPieceDragEnd}
                   boardOrientation={playerColor}
-                  arePiecesDraggable={gameStatus === "playing" && !isThinking}
+                  arePiecesDraggable={gameStatus === "playing" && !isThinking && !pendingPromotion}
                   customSquareStyles={customSquareStyles}
                 />
                 {gameStatus !== "playing" && (
@@ -335,7 +387,6 @@ const Practice = () => {
                 )}
               </div>
 
-              {/* Player info */}
               <div className="flex items-center justify-between mt-4 p-3 bg-muted rounded-lg">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-full bg-accent/20 flex items-center justify-center">
@@ -350,8 +401,16 @@ const Practice = () => {
             </Card>
           </div>
 
-          {/* Controls */}
           <div className="space-y-4">
+            <AICommentary
+              fen={game.fen()}
+              lastMove={lastMove}
+              isCheck={game.isCheck()}
+              isCheckmate={game.isCheckmate()}
+              isDraw={game.isDraw()}
+              moveCount={moveHistory.length}
+            />
+
             <Card>
               <CardHeader>
                 <CardTitle>Game Settings</CardTitle>

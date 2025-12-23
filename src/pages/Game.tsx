@@ -9,6 +9,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Clock, Flag, RotateCcw, Loader2 } from "lucide-react";
 import { PlayerAvatar } from "@/components/PlayerAvatar";
+import { useChessSounds } from "@/hooks/useChessSounds";
+import { PromotionDialog } from "@/components/PromotionDialog";
+
+type PromotionPiece = 'q' | 'r' | 'b' | 'n';
+
+interface PendingPromotion {
+  from: Square;
+  to: Square;
+}
 
 interface GameData {
   id: string;
@@ -36,6 +45,7 @@ const Game = () => {
   const { profile } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const sounds = useChessSounds();
 
   const [game, setGame] = useState<Chess>(new Chess());
   const [gameData, setGameData] = useState<GameData | null>(null);
@@ -46,16 +56,19 @@ const Game = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [legalMoves, setLegalMoves] = useState<Square[]>([]);
+  const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null);
 
   const isWhite = profile?.id === gameData?.white_player_id;
   const isBlack = profile?.id === gameData?.black_player_id;
   const isPlayer = isWhite || isBlack;
   const isMyTurn = (game.turn() === 'w' && isWhite) || (game.turn() === 'b' && isBlack);
+  const myColor = isWhite ? 'white' : 'black';
 
   useEffect(() => {
     if (gameId) {
       fetchGame();
-      subscribeToGame();
+      const unsubscribe = subscribeToGame();
+      return unsubscribe;
     }
   }, [gameId]);
 
@@ -91,7 +104,6 @@ const Game = () => {
       setWhiteTime(data.white_time_remaining || 600);
       setBlackTime(data.black_time_remaining || 600);
 
-      // Fetch players
       const { data: white } = await supabase
         .from('profiles')
         .select('id, username, full_name, avatar_url, avatar_initials')
@@ -106,6 +118,8 @@ const Game = () => {
 
       if (white) setWhitePlayer(white);
       if (black) setBlackPlayer(black);
+      
+      sounds.playGameStart();
     }
     setIsLoading(false);
   };
@@ -126,6 +140,10 @@ const Game = () => {
           newGame.load(data.fen);
         }
         setGame(newGame);
+        // Play sound for opponent's move
+        if (data.pgn) {
+          sounds.playMove();
+        }
       })
       .subscribe();
 
@@ -134,100 +152,42 @@ const Game = () => {
     };
   };
 
-  const getMoveOptions = useCallback((square: Square) => {
-    const moves = game.moves({ square, verbose: true });
-    return moves.map(move => move.to as Square);
+  const playMoveSound = useCallback((move: { captured?: string; san: string; flags: string }) => {
+    if (move.san.includes('#')) {
+      sounds.playCheckmate();
+    } else if (move.san.includes('+')) {
+      sounds.playCheck();
+    } else if (move.captured) {
+      sounds.playCapture();
+    } else if (move.flags.includes('k') || move.flags.includes('q')) {
+      sounds.playCastle();
+    } else if (move.san.includes('=')) {
+      sounds.playPromotion();
+    } else {
+      sounds.playMove();
+    }
+  }, [sounds]);
+
+  const isPromotionMove = useCallback((from: Square, to: Square): boolean => {
+    const piece = game.get(from);
+    if (!piece || piece.type !== 'p') return false;
+    const targetRank = to[1];
+    return (piece.color === 'w' && targetRank === '8') || (piece.color === 'b' && targetRank === '1');
   }, [game]);
 
-  const onSquareClick = useCallback((square: Square) => {
-    if (!isMyTurn || !gameData || gameData.result !== 'in_progress') return;
-
-    // If clicking on a legal move square, make the move
-    if (selectedSquare && legalMoves.includes(square)) {
-      const gameCopy = new Chess(game.fen());
-      const move = gameCopy.move({
-        from: selectedSquare,
-        to: square,
-        promotion: 'q',
-      });
-
-      if (move) {
-        setGame(gameCopy);
-        setSelectedSquare(null);
-        setLegalMoves([]);
-
-        const newFen = gameCopy.fen();
-        const newPgn = gameCopy.pgn();
-
-        let result: string = 'in_progress';
-        if (gameCopy.isCheckmate()) {
-          result = gameCopy.turn() === 'w' ? 'black_wins' : 'white_wins';
-        } else if (gameCopy.isDraw()) {
-          result = 'draw';
-        }
-
-        supabase
-          .from('games')
-          .update({
-            fen: newFen,
-            pgn: newPgn,
-            result: result as any,
-            white_time_remaining: whiteTime,
-            black_time_remaining: blackTime,
-            ...(result !== 'in_progress' ? { ended_at: new Date().toISOString() } : {}),
-          })
-          .eq('id', gameId)
-          .then(() => {
-            if (result !== 'in_progress') {
-              updatePlayerScores(result);
-              toast({ title: "Game Over!", description: `Result: ${result.replace(/_/g, ' ')}` });
-            }
-          });
-      }
-      return;
-    }
-
-    // Select a new piece
-    const piece = game.get(square);
-    const myColor = isWhite ? 'w' : 'b';
-    if (piece && piece.color === myColor) {
-      setSelectedSquare(square);
-      setLegalMoves(getMoveOptions(square));
-    } else {
-      setSelectedSquare(null);
-      setLegalMoves([]);
-    }
-  }, [game, isMyTurn, gameData, selectedSquare, legalMoves, isWhite, gameId, whiteTime, blackTime, getMoveOptions, toast]);
-
-  const onPieceDragBegin = useCallback((_piece: string, sourceSquare: Square) => {
-    if (!isMyTurn || !gameData || gameData.result !== 'in_progress') return false;
-    
-    setSelectedSquare(sourceSquare);
-    setLegalMoves(getMoveOptions(sourceSquare));
-    return true;
-  }, [isMyTurn, gameData, getMoveOptions]);
-
-  const onPieceDragEnd = useCallback(() => {
-    setSelectedSquare(null);
-    setLegalMoves([]);
-  }, []);
-
-  const onDrop = useCallback((sourceSquare: string, targetSquare: string): boolean => {
-    if (!isMyTurn || !gameData || gameData.result !== 'in_progress') return false;
+  const executeMove = useCallback((from: Square, to: Square, promotion: PromotionPiece = 'q') => {
+    if (!gameData) return false;
 
     try {
       const gameCopy = new Chess(game.fen());
-      const move = gameCopy.move({
-        from: sourceSquare,
-        to: targetSquare,
-        promotion: 'q',
-      });
+      const move = gameCopy.move({ from, to, promotion });
 
       if (!move) return false;
 
       setGame(gameCopy);
       setSelectedSquare(null);
       setLegalMoves([]);
+      playMoveSound(move);
 
       const newFen = gameCopy.fen();
       const newPgn = gameCopy.pgn();
@@ -261,9 +221,75 @@ const Game = () => {
     } catch {
       return false;
     }
-  }, [game, isMyTurn, gameData, gameId, whiteTime, blackTime, toast]);
+  }, [game, gameData, gameId, whiteTime, blackTime, playMoveSound, toast]);
 
-  // Custom square styles for highlighting
+  const handlePromotionSelect = useCallback((piece: PromotionPiece) => {
+    if (pendingPromotion) {
+      executeMove(pendingPromotion.from, pendingPromotion.to, piece);
+      setPendingPromotion(null);
+    }
+  }, [pendingPromotion, executeMove]);
+
+  const getMoveOptions = useCallback((square: Square) => {
+    const moves = game.moves({ square, verbose: true });
+    return moves.map(move => move.to as Square);
+  }, [game]);
+
+  const onSquareClick = useCallback((square: Square) => {
+    if (!isMyTurn || !gameData || gameData.result !== 'in_progress' || pendingPromotion) return;
+
+    if (selectedSquare && legalMoves.includes(square)) {
+      if (isPromotionMove(selectedSquare, square)) {
+        setPendingPromotion({ from: selectedSquare, to: square });
+        return;
+      }
+      executeMove(selectedSquare, square);
+      return;
+    }
+
+    const piece = game.get(square);
+    const myColorChar = isWhite ? 'w' : 'b';
+    if (piece && piece.color === myColorChar) {
+      setSelectedSquare(square);
+      setLegalMoves(getMoveOptions(square));
+    } else {
+      setSelectedSquare(null);
+      setLegalMoves([]);
+    }
+  }, [game, isMyTurn, gameData, selectedSquare, legalMoves, isWhite, pendingPromotion, isPromotionMove, executeMove, getMoveOptions]);
+
+  const onPieceDragBegin = useCallback((_piece: string, sourceSquare: Square) => {
+    if (!isMyTurn || !gameData || gameData.result !== 'in_progress' || pendingPromotion) return false;
+    
+    setSelectedSquare(sourceSquare);
+    setLegalMoves(getMoveOptions(sourceSquare));
+    return true;
+  }, [isMyTurn, gameData, pendingPromotion, getMoveOptions]);
+
+  const onPieceDragEnd = useCallback(() => {
+    setSelectedSquare(null);
+    setLegalMoves([]);
+  }, []);
+
+  const onDrop = useCallback((sourceSquare: string, targetSquare: string): boolean => {
+    if (!isMyTurn || !gameData || gameData.result !== 'in_progress' || pendingPromotion) return false;
+
+    const from = sourceSquare as Square;
+    const to = targetSquare as Square;
+
+    // Check if this is a legal move
+    const moves = game.moves({ square: from, verbose: true });
+    const isLegal = moves.some(m => m.to === to);
+    if (!isLegal) return false;
+
+    if (isPromotionMove(from, to)) {
+      setPendingPromotion({ from, to });
+      return true;
+    }
+
+    return executeMove(from, to);
+  }, [game, isMyTurn, gameData, pendingPromotion, isPromotionMove, executeMove]);
+
   const customSquareStyles = useMemo(() => {
     const styles: Record<string, React.CSSProperties> = {};
     
@@ -300,7 +326,6 @@ const Game = () => {
       blackScore = 0.5;
     }
 
-    // Update tournament_players scores
     const { data: whiteTp } = await supabase
       .from('tournament_players')
       .select('score')
@@ -373,12 +398,16 @@ const Game = () => {
 
   return (
     <div className="min-h-screen bg-background p-4">
+      <PromotionDialog
+        isOpen={!!pendingPromotion}
+        color={myColor}
+        onSelect={handlePromotionSelect}
+      />
+
       <div className="max-w-4xl mx-auto">
         <div className="grid md:grid-cols-3 gap-6">
-          {/* Chessboard */}
           <div className="md:col-span-2">
             <Card className="p-4">
-              {/* Black Player */}
               <div className="flex items-center justify-between mb-4 p-3 bg-muted rounded-lg">
                 <div className="flex items-center gap-3">
                   <PlayerAvatar
@@ -406,12 +435,11 @@ const Game = () => {
                   onPieceDragBegin={onPieceDragBegin}
                   onPieceDragEnd={onPieceDragEnd}
                   boardOrientation={isBlack ? 'black' : 'white'}
-                  arePiecesDraggable={isPlayer && isMyTurn && gameData.result === 'in_progress'}
+                  arePiecesDraggable={isPlayer && isMyTurn && gameData.result === 'in_progress' && !pendingPromotion}
                   customSquareStyles={customSquareStyles}
                 />
               </div>
 
-              {/* White Player */}
               <div className="flex items-center justify-between mt-4 p-3 bg-muted rounded-lg">
                 <div className="flex items-center gap-3">
                   <PlayerAvatar
@@ -433,7 +461,6 @@ const Game = () => {
             </Card>
           </div>
 
-          {/* Game Info */}
           <div className="space-y-4">
             <Card>
               <CardHeader>
@@ -456,7 +483,7 @@ const Game = () => {
                 </div>
 
                 {game.isCheck() && gameData.result === 'in_progress' && (
-                  <div className="p-3 bg-destructive/10 text-destructive rounded-lg text-center font-bold">
+                  <div className="p-3 bg-destructive/10 text-destructive rounded-lg text-center font-bold animate-pulse">
                     CHECK!
                   </div>
                 )}
@@ -475,7 +502,6 @@ const Game = () => {
               </CardContent>
             </Card>
 
-            {/* Move History */}
             <Card>
               <CardHeader>
                 <CardTitle>Moves</CardTitle>
