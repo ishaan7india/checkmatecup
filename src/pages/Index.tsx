@@ -26,10 +26,10 @@ const Index = () => {
               Christmas Gambit Cup
             </h1>
             <p className="font-gamer text-2xl md:text-3xl text-accent dark:text-neon-cyan mb-4">
-              2K25
+              • DPSBE 2K25 •
             </p>
             <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto font-gamer-body">
-              The ultimate school chess tournament. Compete, strategize, and claim your place among champions.
+              The ultimate DPSBE chess tournament. Compete, strategize, and claim your place among champions.
             </p>
 
             <div className="candy-divider w-48 mx-auto mb-8 dark:hidden" />
@@ -111,7 +111,7 @@ const Index = () => {
             Ready to Make Your Move?
           </h2>
           <p className="text-muted-foreground mb-8 font-gamer-body text-lg">
-            Join the tournament and compete for the Christmas Gambit Cup trophy!
+            Join the tournament and compete for the Christmas Gambit Cup!
           </p>
           <Link to={user ? "/profile" : "/auth"}>
             <Button size="lg" className="gap-2">
