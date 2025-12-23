@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from "react";
-import { Chess } from "chess.js";
+import { useState, useCallback, useEffect, useMemo } from "react";
+import { Chess, Square } from "chess.js";
 import { Chessboard } from "react-chessboard";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,8 @@ const Practice = () => {
   const [isThinking, setIsThinking] = useState(false);
   const [gameStatus, setGameStatus] = useState<"playing" | "won" | "lost" | "draw">("playing");
   const [moveHistory, setMoveHistory] = useState<string[]>([]);
-
+  const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
+  const [legalMoves, setLegalMoves] = useState<Square[]>([]);
   const checkGameEnd = useCallback((currentGame: Chess) => {
     if (currentGame.isCheckmate()) {
       const winner = currentGame.turn() === 'w' ? 'black' : 'white';
@@ -119,6 +120,68 @@ const Practice = () => {
     }
   }, [playerColor, game, gameStatus, makeBotMove]);
 
+  const getMoveOptions = useCallback((square: Square) => {
+    const moves = game.moves({ square, verbose: true });
+    return moves.map(move => move.to as Square);
+  }, [game]);
+
+  const onSquareClick = useCallback((square: Square) => {
+    if (gameStatus !== "playing" || isThinking) return;
+    
+    const isPlayerTurn = (game.turn() === 'w' && playerColor === 'white') || 
+                         (game.turn() === 'b' && playerColor === 'black');
+    if (!isPlayerTurn) return;
+
+    // If clicking on a legal move square, make the move
+    if (selectedSquare && legalMoves.includes(square)) {
+      const newGame = new Chess(game.fen());
+      const move = newGame.move({
+        from: selectedSquare,
+        to: square,
+        promotion: 'q',
+      });
+
+      if (move) {
+        setGame(newGame);
+        setMoveHistory(prev => [...prev, move.san]);
+        setSelectedSquare(null);
+        setLegalMoves([]);
+        
+        if (!checkGameEnd(newGame)) {
+          setTimeout(() => makeBotMove(newGame), 500);
+        }
+      }
+      return;
+    }
+
+    // Select a new piece
+    const piece = game.get(square);
+    if (piece && ((piece.color === 'w' && playerColor === 'white') || (piece.color === 'b' && playerColor === 'black'))) {
+      setSelectedSquare(square);
+      setLegalMoves(getMoveOptions(square));
+    } else {
+      setSelectedSquare(null);
+      setLegalMoves([]);
+    }
+  }, [game, playerColor, gameStatus, isThinking, selectedSquare, legalMoves, checkGameEnd, makeBotMove, getMoveOptions]);
+
+  const onPieceDragBegin = useCallback((_piece: string, sourceSquare: Square) => {
+    if (gameStatus !== "playing" || isThinking) return false;
+    
+    const isPlayerTurn = (game.turn() === 'w' && playerColor === 'white') || 
+                         (game.turn() === 'b' && playerColor === 'black');
+    if (!isPlayerTurn) return false;
+
+    setSelectedSquare(sourceSquare);
+    setLegalMoves(getMoveOptions(sourceSquare));
+    return true;
+  }, [game, playerColor, gameStatus, isThinking, getMoveOptions]);
+
+  const onPieceDragEnd = useCallback(() => {
+    setSelectedSquare(null);
+    setLegalMoves([]);
+  }, []);
+
   const onDrop = useCallback((sourceSquare: string, targetSquare: string): boolean => {
     if (gameStatus !== "playing" || isThinking) return false;
     
@@ -138,10 +201,10 @@ const Practice = () => {
 
       setGame(newGame);
       setMoveHistory(prev => [...prev, move.san]);
+      setSelectedSquare(null);
+      setLegalMoves([]);
       
-      // Check if game ended after player move
       if (!checkGameEnd(newGame)) {
-        // Bot's turn
         setTimeout(() => makeBotMove(newGame), 500);
       }
 
@@ -151,10 +214,34 @@ const Practice = () => {
     }
   }, [game, playerColor, gameStatus, isThinking, checkGameEnd, makeBotMove]);
 
+  // Custom square styles for highlighting
+  const customSquareStyles = useMemo(() => {
+    const styles: Record<string, React.CSSProperties> = {};
+    
+    if (selectedSquare) {
+      styles[selectedSquare] = {
+        backgroundColor: 'rgba(255, 255, 0, 0.4)',
+      };
+    }
+    
+    legalMoves.forEach(square => {
+      const piece = game.get(square as Square);
+      styles[square] = {
+        background: piece 
+          ? 'radial-gradient(circle, rgba(255, 0, 0, 0.4) 85%, transparent 85%)'
+          : 'radial-gradient(circle, rgba(0, 128, 0, 0.4) 25%, transparent 25%)',
+      };
+    });
+    
+    return styles;
+  }, [selectedSquare, legalMoves, game]);
+
   const resetGame = () => {
     setGame(new Chess());
     setGameStatus("playing");
     setMoveHistory([]);
+    setSelectedSquare(null);
+    setLegalMoves([]);
     if (playerColor === 'black') {
       setTimeout(() => {
         const newGame = new Chess();
@@ -224,8 +311,12 @@ const Practice = () => {
                 <Chessboard
                   position={game.fen()}
                   onPieceDrop={onDrop}
+                  onSquareClick={onSquareClick}
+                  onPieceDragBegin={onPieceDragBegin}
+                  onPieceDragEnd={onPieceDragEnd}
                   boardOrientation={playerColor}
                   arePiecesDraggable={gameStatus === "playing" && !isThinking}
+                  customSquareStyles={customSquareStyles}
                 />
                 {gameStatus !== "playing" && (
                   <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center">
