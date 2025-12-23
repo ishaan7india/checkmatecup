@@ -124,7 +124,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="py-8 border-t border-border">
         <div className="container mx-auto px-4 text-center text-muted-foreground font-gamer-body">
-          <p>🎄 Christmas Gambit Cup 2K25 • School Chess Tournament ♟️</p>
+          <p>🎄 Christmas Gambit Cup • DPSBE 2K25 ♟️</p>
         </div>
       </footer>
     </div>
