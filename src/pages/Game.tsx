@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Chess } from "chess.js";
+import { Chess, Square } from "chess.js";
 import { Chessboard } from "react-chessboard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -44,6 +44,8 @@ const Game = () => {
   const [whiteTime, setWhiteTime] = useState(600);
   const [blackTime, setBlackTime] = useState(600);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
+  const [legalMoves, setLegalMoves] = useState<Square[]>([]);
 
   const isWhite = profile?.id === gameData?.white_player_id;
   const isBlack = profile?.id === gameData?.black_player_id;
@@ -132,6 +134,84 @@ const Game = () => {
     };
   };
 
+  const getMoveOptions = useCallback((square: Square) => {
+    const moves = game.moves({ square, verbose: true });
+    return moves.map(move => move.to as Square);
+  }, [game]);
+
+  const onSquareClick = useCallback((square: Square) => {
+    if (!isMyTurn || !gameData || gameData.result !== 'in_progress') return;
+
+    // If clicking on a legal move square, make the move
+    if (selectedSquare && legalMoves.includes(square)) {
+      const gameCopy = new Chess(game.fen());
+      const move = gameCopy.move({
+        from: selectedSquare,
+        to: square,
+        promotion: 'q',
+      });
+
+      if (move) {
+        setGame(gameCopy);
+        setSelectedSquare(null);
+        setLegalMoves([]);
+
+        const newFen = gameCopy.fen();
+        const newPgn = gameCopy.pgn();
+
+        let result: string = 'in_progress';
+        if (gameCopy.isCheckmate()) {
+          result = gameCopy.turn() === 'w' ? 'black_wins' : 'white_wins';
+        } else if (gameCopy.isDraw()) {
+          result = 'draw';
+        }
+
+        supabase
+          .from('games')
+          .update({
+            fen: newFen,
+            pgn: newPgn,
+            result: result as any,
+            white_time_remaining: whiteTime,
+            black_time_remaining: blackTime,
+            ...(result !== 'in_progress' ? { ended_at: new Date().toISOString() } : {}),
+          })
+          .eq('id', gameId)
+          .then(() => {
+            if (result !== 'in_progress') {
+              updatePlayerScores(result);
+              toast({ title: "Game Over!", description: `Result: ${result.replace(/_/g, ' ')}` });
+            }
+          });
+      }
+      return;
+    }
+
+    // Select a new piece
+    const piece = game.get(square);
+    const myColor = isWhite ? 'w' : 'b';
+    if (piece && piece.color === myColor) {
+      setSelectedSquare(square);
+      setLegalMoves(getMoveOptions(square));
+    } else {
+      setSelectedSquare(null);
+      setLegalMoves([]);
+    }
+  }, [game, isMyTurn, gameData, selectedSquare, legalMoves, isWhite, gameId, whiteTime, blackTime, getMoveOptions, toast]);
+
+  const onPieceDragBegin = useCallback((_piece: string, sourceSquare: Square) => {
+    if (!isMyTurn || !gameData || gameData.result !== 'in_progress') return false;
+    
+    setSelectedSquare(sourceSquare);
+    setLegalMoves(getMoveOptions(sourceSquare));
+    return true;
+  }, [isMyTurn, gameData, getMoveOptions]);
+
+  const onPieceDragEnd = useCallback(() => {
+    setSelectedSquare(null);
+    setLegalMoves([]);
+  }, []);
+
   const onDrop = useCallback((sourceSquare: string, targetSquare: string): boolean => {
     if (!isMyTurn || !gameData || gameData.result !== 'in_progress') return false;
 
@@ -145,13 +225,13 @@ const Game = () => {
 
       if (!move) return false;
 
-      // Update local state immediately
       setGame(gameCopy);
+      setSelectedSquare(null);
+      setLegalMoves([]);
 
       const newFen = gameCopy.fen();
       const newPgn = gameCopy.pgn();
 
-      // Check for game end
       let result: string = 'in_progress';
       if (gameCopy.isCheckmate()) {
         result = gameCopy.turn() === 'w' ? 'black_wins' : 'white_wins';
@@ -159,7 +239,6 @@ const Game = () => {
         result = 'draw';
       }
 
-      // Async update to database
       supabase
         .from('games')
         .update({
@@ -182,7 +261,29 @@ const Game = () => {
     } catch {
       return false;
     }
-  }, [game, isMyTurn, gameData, gameId, whiteTime, blackTime]);
+  }, [game, isMyTurn, gameData, gameId, whiteTime, blackTime, toast]);
+
+  // Custom square styles for highlighting
+  const customSquareStyles = useMemo(() => {
+    const styles: Record<string, React.CSSProperties> = {};
+    
+    if (selectedSquare) {
+      styles[selectedSquare] = {
+        backgroundColor: 'rgba(255, 255, 0, 0.4)',
+      };
+    }
+    
+    legalMoves.forEach(square => {
+      const piece = game.get(square as Square);
+      styles[square] = {
+        background: piece 
+          ? 'radial-gradient(circle, rgba(255, 0, 0, 0.4) 85%, transparent 85%)'
+          : 'radial-gradient(circle, rgba(0, 128, 0, 0.4) 25%, transparent 25%)',
+      };
+    });
+    
+    return styles;
+  }, [selectedSquare, legalMoves, game]);
 
   const updatePlayerScores = async (result: string) => {
     if (!gameData) return;
@@ -301,8 +402,12 @@ const Game = () => {
                 <Chessboard
                   position={game.fen()}
                   onPieceDrop={onDrop}
+                  onSquareClick={onSquareClick}
+                  onPieceDragBegin={onPieceDragBegin}
+                  onPieceDragEnd={onPieceDragEnd}
                   boardOrientation={isBlack ? 'black' : 'white'}
                   arePiecesDraggable={isPlayer && isMyTurn && gameData.result === 'in_progress'}
+                  customSquareStyles={customSquareStyles}
                 />
               </div>
 
