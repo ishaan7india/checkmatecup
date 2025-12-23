@@ -132,11 +132,12 @@ const Game = () => {
     };
   };
 
-  const onDrop = useCallback(async (sourceSquare: string, targetSquare: string) => {
+  const onDrop = useCallback((sourceSquare: string, targetSquare: string): boolean => {
     if (!isMyTurn || !gameData || gameData.result !== 'in_progress') return false;
 
     try {
-      const move = game.move({
+      const gameCopy = new Chess(game.fen());
+      const move = gameCopy.move({
         from: sourceSquare,
         to: targetSquare,
         promotion: 'q',
@@ -144,18 +145,22 @@ const Game = () => {
 
       if (!move) return false;
 
-      const newFen = game.fen();
-      const newPgn = game.pgn();
+      // Update local state immediately
+      setGame(gameCopy);
+
+      const newFen = gameCopy.fen();
+      const newPgn = gameCopy.pgn();
 
       // Check for game end
       let result: string = 'in_progress';
-      if (game.isCheckmate()) {
-        result = game.turn() === 'w' ? 'black_wins' : 'white_wins';
-      } else if (game.isDraw()) {
+      if (gameCopy.isCheckmate()) {
+        result = gameCopy.turn() === 'w' ? 'black_wins' : 'white_wins';
+      } else if (gameCopy.isDraw()) {
         result = 'draw';
       }
 
-      await supabase
+      // Async update to database
+      supabase
         .from('games')
         .update({
           fen: newFen,
@@ -165,12 +170,13 @@ const Game = () => {
           black_time_remaining: blackTime,
           ...(result !== 'in_progress' ? { ended_at: new Date().toISOString() } : {}),
         })
-        .eq('id', gameId);
-
-      if (result !== 'in_progress') {
-        await updatePlayerScores(result);
-        toast({ title: "Game Over!", description: `Result: ${result.replace(/_/g, ' ')}` });
-      }
+        .eq('id', gameId)
+        .then(() => {
+          if (result !== 'in_progress') {
+            updatePlayerScores(result);
+            toast({ title: "Game Over!", description: `Result: ${result.replace(/_/g, ' ')}` });
+          }
+        });
 
       return true;
     } catch {
@@ -292,11 +298,12 @@ const Game = () => {
               </div>
 
               <Chessboard
-                id="game-board"
-                position={game.fen()}
-                onPieceDrop={onDrop}
-                boardOrientation={isBlack ? 'black' : 'white'}
-                arePiecesDraggable={isPlayer && isMyTurn && gameData.result === 'in_progress'}
+                options={{
+                  position: game.fen(),
+                  onPieceDrop: ({ sourceSquare, targetSquare }) => onDrop(sourceSquare, targetSquare),
+                  boardOrientation: isBlack ? 'black' : 'white',
+                  allowDragging: isPlayer && isMyTurn && gameData.result === 'in_progress',
+                }}
               />
 
               {/* White Player */}
