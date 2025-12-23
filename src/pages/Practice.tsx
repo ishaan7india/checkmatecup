@@ -222,12 +222,10 @@ const Practice = () => {
 
               <div className="relative">
                 <Chessboard
-                  options={{
-                    position: game.fen(),
-                    onPieceDrop: ({ sourceSquare, targetSquare }) => onDrop(sourceSquare, targetSquare),
-                    boardOrientation: playerColor,
-                    allowDragging: gameStatus === "playing" && !isThinking,
-                  }}
+                  position={game.fen()}
+                  onPieceDrop={onDrop}
+                  boardOrientation={playerColor}
+                  arePiecesDraggable={gameStatus === "playing" && !isThinking}
                 />
                 {gameStatus !== "playing" && (
                   <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center">

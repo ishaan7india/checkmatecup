@@ -298,12 +298,10 @@ const Game = () => {
               </div>
 
               <Chessboard
-                options={{
-                  position: game.fen(),
-                  onPieceDrop: ({ sourceSquare, targetSquare }) => onDrop(sourceSquare, targetSquare),
-                  boardOrientation: isBlack ? 'black' : 'white',
-                  allowDragging: isPlayer && isMyTurn && gameData.result === 'in_progress',
-                }}
+                position={game.fen()}
+                onPieceDrop={onDrop}
+                boardOrientation={isBlack ? 'black' : 'white'}
+                arePiecesDraggable={isPlayer && isMyTurn && gameData.result === 'in_progress'}
               />
 
               {/* White Player */}
