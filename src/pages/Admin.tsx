@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Crown, Play, Settings, Trophy, Users, Eye, EyeOff, Loader2, Award } from "lucide-react";
+import { Crown, Play, Settings, Trophy, Users, Eye, EyeOff, Loader2, Award, UserPlus } from "lucide-react";
 import { PlayerAvatar } from "@/components/PlayerAvatar";
 
 interface Tournament {
@@ -29,6 +28,7 @@ interface Player {
   score: number;
 }
 
+const ADMIN_KEY = "ChristmasGambit2K25Admin";
 const ADMIN_USERNAME = "Admin";
 const ADMIN_PASSWORD = "P@s$w0rd";
 
@@ -42,12 +42,10 @@ const Admin = () => {
   const [players, setPlayers] = useState<Player[]>([]);
   const [registeredPlayers, setRegisteredPlayers] = useState<string[]>([]);
   
-  // Tournament settings
   const [format, setFormat] = useState("swiss");
   const [timeControl, setTimeControl] = useState("10 | 5");
   
   const { toast } = useToast();
-  const navigate = useNavigate();
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -55,6 +53,16 @@ const Admin = () => {
       fetchPlayers();
     }
   }, [isAuthenticated]);
+
+  const adminAction = async (action: string, data: Record<string, unknown> = {}) => {
+    const { data: result, error } = await supabase.functions.invoke('admin-action', {
+      body: { action, data, adminKey: ADMIN_KEY }
+    });
+    
+    if (error) throw error;
+    if (result?.error) throw new Error(result.error);
+    return result;
+  };
 
   const fetchTournament = async () => {
     const { data } = await supabase
@@ -69,7 +77,6 @@ const Admin = () => {
       setFormat(data.format);
       setTimeControl(data.time_control);
       
-      // Fetch registered players
       const { data: regPlayers } = await supabase
         .from('tournament_players')
         .select('player_id')
@@ -104,22 +111,17 @@ const Admin = () => {
 
   const createTournament = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from('tournaments')
-      .insert({
+    try {
+      const result = await adminAction('createTournament', {
         name: 'Christmas Gambit Cup 2K25',
-        format: format as any,
-        status: 'registration',
-        time_control: timeControl,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      toast({ variant: "destructive", title: "Failed to create tournament", description: error.message });
-    } else {
-      setTournament(data as Tournament);
+        format,
+        timeControl,
+      });
+      setTournament(result as Tournament);
       toast({ title: "Tournament created!" });
+      fetchTournament();
+    } catch (error) {
+      toast({ variant: "destructive", title: "Failed to create tournament", description: String(error) });
     }
     setIsLoading(false);
   };
@@ -128,19 +130,32 @@ const Admin = () => {
     if (!tournament) return;
     setIsLoading(true);
     
-    const { error } = await supabase
-      .from('tournaments')
-      .update({
-        format: format as any,
-        time_control: timeControl,
-      })
-      .eq('id', tournament.id);
-
-    if (error) {
-      toast({ variant: "destructive", title: "Failed to update", description: error.message });
-    } else {
+    try {
+      await adminAction('updateTournament', {
+        tournamentId: tournament.id,
+        format,
+        timeControl,
+      });
       toast({ title: "Settings updated!" });
       fetchTournament();
+    } catch (error) {
+      toast({ variant: "destructive", title: "Failed to update", description: String(error) });
+    }
+    setIsLoading(false);
+  };
+
+  const registerAllPlayers = async () => {
+    if (!tournament) return;
+    setIsLoading(true);
+    
+    try {
+      const result = await adminAction('registerAllPlayers', {
+        tournamentId: tournament.id,
+      });
+      toast({ title: "All players registered!", description: `${result.count} players added` });
+      fetchTournament();
+    } catch (error) {
+      toast({ variant: "destructive", title: "Failed to register players", description: String(error) });
     }
     setIsLoading(false);
   };
@@ -153,31 +168,25 @@ const Admin = () => {
     
     setIsLoading(true);
     
-    // Calculate total rounds based on format and player count
     let totalRounds = Math.ceil(Math.log2(registeredPlayers.length));
     if (format === 'swiss' || format === 'swiss_playoffs' || format === 'swiss_super_league') {
       totalRounds = Math.ceil(Math.log2(registeredPlayers.length)) + 1;
     } else if (format === 'round_robin_playoffs') {
       totalRounds = registeredPlayers.length - 1;
     } else if (format === 'arena') {
-      totalRounds = 10; // Arena typically has fixed duration
+      totalRounds = 10;
     }
 
-    const { error } = await supabase
-      .from('tournaments')
-      .update({
-        status: 'in_progress',
-        current_round: 1,
-        total_rounds: totalRounds,
-      })
-      .eq('id', tournament.id);
-
-    if (error) {
-      toast({ variant: "destructive", title: "Failed to start tournament", description: error.message });
-    } else {
-      toast({ title: "Tournament started!" });
+    try {
+      await adminAction('startTournament', {
+        tournamentId: tournament.id,
+        totalRounds,
+      });
       await generatePairings();
+      toast({ title: "Tournament started!" });
       fetchTournament();
+    } catch (error) {
+      toast({ variant: "destructive", title: "Failed to start tournament", description: String(error) });
     }
     setIsLoading(false);
   };
@@ -185,7 +194,6 @@ const Admin = () => {
   const generatePairings = async () => {
     if (!tournament) return;
     
-    // Get registered players with scores
     const { data: tournamentPlayers } = await supabase
       .from('tournament_players')
       .select('player_id, score')
@@ -196,35 +204,23 @@ const Admin = () => {
     if (!tournamentPlayers || tournamentPlayers.length < 2) return;
 
     const playerIds = tournamentPlayers.map(p => p.player_id);
-    const pairings: { white: string; black: string }[] = [];
 
-    // Simple Swiss pairing: pair adjacent players by score
     for (let i = 0; i < playerIds.length - 1; i += 2) {
-      pairings.push({
-        white: playerIds[i],
-        black: playerIds[i + 1],
+      await adminAction('createGame', {
+        tournamentId: tournament.id,
+        round: (tournament.current_round || 0) + 1,
+        whitePlayerId: playerIds[i],
+        blackPlayerId: playerIds[i + 1],
       });
     }
 
-    // Handle bye if odd number of players
     if (playerIds.length % 2 === 1) {
       const byePlayer = playerIds[playerIds.length - 1];
-      // Give bye player a win (1 point)
-      await supabase
-        .from('tournament_players')
-        .update({ score: tournamentPlayers[tournamentPlayers.length - 1].score + 1 })
-        .eq('tournament_id', tournament.id)
-        .eq('player_id', byePlayer);
-    }
-
-    // Create games for pairings
-    for (const pairing of pairings) {
-      await supabase.from('games').insert({
-        tournament_id: tournament.id,
-        round: tournament.current_round + 1,
-        white_player_id: pairing.white,
-        black_player_id: pairing.black,
-        result: 'pending',
+      const currentScore = tournamentPlayers[tournamentPlayers.length - 1].score;
+      await adminAction('updatePlayerScore', {
+        tournamentId: tournament.id,
+        playerId: byePlayer,
+        score: Number(currentScore) + 1,
       });
     }
   };
@@ -233,30 +229,27 @@ const Admin = () => {
     if (!tournament) return;
     setIsLoading(true);
 
-    // Get top 3 players
-    const { data: topPlayers } = await supabase
-      .from('tournament_players')
-      .select('player_id, score')
-      .eq('tournament_id', tournament.id)
-      .order('score', { ascending: false })
-      .limit(3);
+    try {
+      const { data: topPlayers } = await supabase
+        .from('tournament_players')
+        .select('player_id, score')
+        .eq('tournament_id', tournament.id)
+        .order('score', { ascending: false })
+        .limit(3);
 
-    if (topPlayers && topPlayers.length >= 1) {
-      await supabase.from('champions').insert({
-        tournament_id: tournament.id,
-        first_place_id: topPlayers[0]?.player_id || null,
-        second_place_id: topPlayers[1]?.player_id || null,
-        third_place_id: topPlayers[2]?.player_id || null,
-        published: true,
-      });
+      if (topPlayers && topPlayers.length >= 1) {
+        await adminAction('publishResults', {
+          tournamentId: tournament.id,
+          firstPlace: topPlayers[0]?.player_id || null,
+          secondPlace: topPlayers[1]?.player_id || null,
+          thirdPlace: topPlayers[2]?.player_id || null,
+        });
 
-      await supabase
-        .from('tournaments')
-        .update({ status: 'completed' })
-        .eq('id', tournament.id);
-
-      toast({ title: "Results published!", description: "Champions page is now live!" });
-      fetchTournament();
+        toast({ title: "Results published!", description: "Champions page is now live!" });
+        fetchTournament();
+      }
+    } catch (error) {
+      toast({ variant: "destructive", title: "Failed to publish results", description: String(error) });
     }
     setIsLoading(false);
   };
@@ -323,7 +316,6 @@ const Admin = () => {
           </Button>
         </div>
 
-        {/* Tournament Status */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -358,7 +350,6 @@ const Admin = () => {
         </Card>
 
         <div className="grid md:grid-cols-2 gap-6">
-          {/* Tournament Settings */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -374,12 +365,12 @@ const Admin = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="swiss">🧩 Swiss Only</SelectItem>
-                    <SelectItem value="knockouts">⚔️ Knockouts Only</SelectItem>
-                    <SelectItem value="round_robin_playoffs">🔄 Round Robin + IPL Playoffs</SelectItem>
-                    <SelectItem value="swiss_playoffs">🔁 Swiss + Playoffs</SelectItem>
-                    <SelectItem value="swiss_super_league">🏟 Swiss + Super League</SelectItem>
-                    <SelectItem value="arena">⚡ Arena</SelectItem>
+                    <SelectItem value="swiss">Swiss Only</SelectItem>
+                    <SelectItem value="knockouts">Knockouts Only</SelectItem>
+                    <SelectItem value="round_robin_playoffs">Round Robin + Playoffs</SelectItem>
+                    <SelectItem value="swiss_playoffs">Swiss + Playoffs</SelectItem>
+                    <SelectItem value="swiss_super_league">Swiss + Super League</SelectItem>
+                    <SelectItem value="arena">Arena</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -401,24 +392,28 @@ const Admin = () => {
                 </Select>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2">
                 {!tournament ? (
-                  <Button onClick={createTournament} disabled={isLoading} className="flex-1">
+                  <Button onClick={createTournament} disabled={isLoading} className="w-full">
                     {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                     Create Tournament
                   </Button>
                 ) : tournament.status === 'registration' ? (
                   <>
-                    <Button onClick={updateTournamentSettings} disabled={isLoading} variant="outline" className="flex-1">
+                    <Button onClick={updateTournamentSettings} disabled={isLoading} variant="outline">
                       Save Settings
                     </Button>
-                    <Button onClick={startTournament} disabled={isLoading || registeredPlayers.length < 2} className="flex-1">
+                    <Button onClick={registerAllPlayers} disabled={isLoading} variant="secondary">
+                      {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserPlus className="h-4 w-4 mr-2" />}
+                      Register All Players
+                    </Button>
+                    <Button onClick={startTournament} disabled={isLoading || registeredPlayers.length < 2}>
                       {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Play className="h-4 w-4 mr-2" />}
                       Start Tournament
                     </Button>
                   </>
                 ) : tournament.status === 'in_progress' ? (
-                  <Button onClick={publishResults} disabled={isLoading} className="flex-1">
+                  <Button onClick={publishResults} disabled={isLoading}>
                     {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Award className="h-4 w-4 mr-2" />}
                     Publish Results
                   </Button>
@@ -429,7 +424,6 @@ const Admin = () => {
             </CardContent>
           </Card>
 
-          {/* Registered Players */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

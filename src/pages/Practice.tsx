@@ -220,7 +220,7 @@ const Practice = () => {
                 )}
               </div>
 
-              <div className="relative">
+              <div className="relative max-w-[min(100%,400px)] mx-auto">
                 <Chessboard
                   position={game.fen()}
                   onPieceDrop={onDrop}
