@@ -297,12 +297,14 @@ const Game = () => {
                 </div>
               </div>
 
-              <Chessboard
-                position={game.fen()}
-                onPieceDrop={onDrop}
-                boardOrientation={isBlack ? 'black' : 'white'}
-                arePiecesDraggable={isPlayer && isMyTurn && gameData.result === 'in_progress'}
-              />
+              <div className="max-w-[min(100%,400px)] mx-auto">
+                <Chessboard
+                  position={game.fen()}
+                  onPieceDrop={onDrop}
+                  boardOrientation={isBlack ? 'black' : 'white'}
+                  arePiecesDraggable={isPlayer && isMyTurn && gameData.result === 'in_progress'}
+                />
+              </div>
 
               {/* White Player */}
               <div className="flex items-center justify-between mt-4 p-3 bg-muted rounded-lg">
