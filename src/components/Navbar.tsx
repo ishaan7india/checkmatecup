@@ -1,4 +1,4 @@
-import { Crown, LogIn, LogOut, Trophy, User } from "lucide-react";
+import { Bot, Crown, LogIn, LogOut, Trophy, User } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle";
 import { Button } from "./ui/button";
@@ -33,6 +33,13 @@ export const Navbar = () => {
           </Link>
 
           <div className="hidden md:flex items-center gap-6">
+            <Link 
+              to="/practice" 
+              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors font-gamer-body"
+            >
+              <Bot className="h-4 w-4" />
+              Practice
+            </Link>
             <Link 
               to="/standings" 
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors font-gamer-body"

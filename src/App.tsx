@@ -13,6 +13,7 @@ import Standings from "./pages/Standings";
 import Champions from "./pages/Champions";
 import Games from "./pages/Games";
 import Game from "./pages/Game";
+import Practice from "./pages/Practice";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
@@ -39,6 +40,7 @@ const App = () => (
                   <Route path="/champions" element={<Champions />} />
                   <Route path="/games" element={<Games />} />
                   <Route path="/game/:gameId" element={<Game />} />
+                  <Route path="/practice" element={<Practice />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </>
