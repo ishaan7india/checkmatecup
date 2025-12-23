@@ -10,20 +10,13 @@ interface Player {
   full_name: string;
   avatar_url: string | null;
   avatar_initials: string | null;
-  score: number;
-  rank: number | null;
-}
-
-interface TournamentPlayer {
-  player_id: string;
-  score: number;
-  buchholz: number;
-  rank: number | null;
-  profiles: Player;
+  score: number | null;
+  games_played: number | null;
+  games_won: number | null;
 }
 
 const Standings = () => {
-  const [players, setPlayers] = useState<TournamentPlayer[]>([]);
+  const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [tournamentName, setTournamentName] = useState("Christmas Gambit Cup 2K25");
 
@@ -33,7 +26,7 @@ const Standings = () => {
     // Subscribe to real-time updates
     const channel = supabase
       .channel('standings')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tournament_players' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
         fetchStandings();
       })
       .subscribe();
@@ -44,7 +37,7 @@ const Standings = () => {
   }, []);
 
   const fetchStandings = async () => {
-    // Get active tournament
+    // Get active tournament name
     const { data: tournament } = await supabase
       .from('tournaments')
       .select('id, name')
@@ -55,31 +48,17 @@ const Standings = () => {
 
     if (tournament) {
       setTournamentName(tournament.name);
-      
-      const { data } = await supabase
-        .from('tournament_players')
-        .select(`
-          player_id,
-          score,
-          buchholz,
-          rank,
-          profiles (
-            id,
-            username,
-            full_name,
-            avatar_url,
-            avatar_initials,
-            score,
-            rank
-          )
-        `)
-        .eq('tournament_id', tournament.id)
-        .order('score', { ascending: false })
-        .order('buchholz', { ascending: false });
+    }
 
-      if (data) {
-        setPlayers(data as unknown as TournamentPlayer[]);
-      }
+    // Get ALL profiles ordered by score - no tournament registration required
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, username, full_name, avatar_url, avatar_initials, score, games_played, games_won')
+      .order('score', { ascending: false, nullsFirst: false })
+      .order('games_won', { ascending: false, nullsFirst: false });
+
+    if (data) {
+      setPlayers(data);
     }
     setLoading(false);
   };
@@ -118,44 +97,50 @@ const Standings = () => {
               <div className="text-center py-8 text-muted-foreground">Loading standings...</div>
             ) : players.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                No players registered yet. Be the first to join!
+                No players yet.
               </div>
             ) : (
               <div className="space-y-2">
                 {/* Header */}
                 <div className="grid grid-cols-12 gap-2 px-4 py-2 text-sm font-medium text-muted-foreground border-b">
                   <div className="col-span-1">#</div>
-                  <div className="col-span-7">Player</div>
+                  <div className="col-span-6">Player</div>
                   <div className="col-span-2 text-center">Score</div>
-                  <div className="col-span-2 text-center">Tiebreak</div>
+                  <div className="col-span-2 text-center">W/L</div>
+                  <div className="col-span-1 text-center">GP</div>
                 </div>
 
                 {/* Players */}
                 {players.map((player, index) => (
                   <div
-                    key={player.player_id}
+                    key={player.id}
                     className={`grid grid-cols-12 gap-2 items-center px-4 py-3 rounded-lg border transition-all hover:scale-[1.01] ${getRankStyle(index)}`}
                   >
                     <div className="col-span-1">
                       {getRankIcon(index)}
                     </div>
-                    <div className="col-span-7 flex items-center gap-3">
+                    <div className="col-span-6 flex items-center gap-3">
                       <PlayerAvatar
-                        avatarUrl={player.profiles.avatar_url}
-                        initials={player.profiles.avatar_initials}
-                        name={player.profiles.full_name}
+                        avatarUrl={player.avatar_url}
+                        initials={player.avatar_initials}
+                        name={player.full_name}
                         size="sm"
                       />
                       <div>
-                        <p className="font-bold">{player.profiles.username}</p>
-                        <p className="text-xs text-muted-foreground">{player.profiles.full_name}</p>
+                        <p className="font-bold">{player.username}</p>
+                        <p className="text-xs text-muted-foreground">{player.full_name}</p>
                       </div>
                     </div>
                     <div className="col-span-2 text-center">
-                      <span className="font-bold text-lg">{Number(player.score).toFixed(1)}</span>
+                      <span className="font-bold text-lg">{Number(player.score || 0).toFixed(1)}</span>
                     </div>
-                    <div className="col-span-2 text-center">
-                      <span className="text-muted-foreground">{Number(player.buchholz).toFixed(1)}</span>
+                    <div className="col-span-2 text-center text-sm">
+                      <span className="text-green-500">{player.games_won || 0}</span>
+                      <span className="text-muted-foreground">/</span>
+                      <span className="text-red-500">{(player.games_played || 0) - (player.games_won || 0)}</span>
+                    </div>
+                    <div className="col-span-1 text-center text-muted-foreground">
+                      {player.games_played || 0}
                     </div>
                   </div>
                 ))}
