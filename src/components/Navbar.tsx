@@ -24,10 +24,10 @@ export const Navbar = () => {
             </div>
             <div className="flex flex-col">
               <span className="font-display text-lg font-bold tracking-wide text-foreground">
-                Christmas Gambit
+                Christmas Gambit Cup
               </span>
               <span className="text-xs text-muted-foreground font-gamer-body">
-                Cup 2K25
+                • DPSBE 2K25 •
               </span>
             </div>
           </Link>
