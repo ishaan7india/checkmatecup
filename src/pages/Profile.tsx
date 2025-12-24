@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Camera, Edit2, Loader2, Trophy, Swords, Award, Target } from "lucide-react";
+import { Camera, Edit2, Loader2, Trophy, Swords, Award, Target, Play } from "lucide-react";
 import { PlayerAvatar } from "@/components/PlayerAvatar";
 
 interface Tournament {
@@ -27,6 +27,7 @@ const Profile = () => {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [isRegistered, setIsRegistered] = useState(false);
+  const [activeGameId, setActiveGameId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { toast } = useToast();
@@ -70,6 +71,22 @@ const Profile = () => {
           .maybeSingle();
         
         setIsRegistered(!!registration);
+
+        // Fetch active game for user
+        if (tournamentData.status === 'in_progress') {
+          const { data: activeGame } = await supabase
+            .from('games')
+            .select('id')
+            .eq('tournament_id', tournamentData.id)
+            .in('result', ['pending', 'in_progress'])
+            .or(`white_player_id.eq.${profile.id},black_player_id.eq.${profile.id}`)
+            .limit(1)
+            .maybeSingle();
+          
+          if (activeGame) {
+            setActiveGameId(activeGame.id);
+          }
+        }
       }
     }
   };
@@ -300,9 +317,20 @@ const Profile = () => {
                   </Button>
                 )
               ) : (
-                <div className="bg-primary/10 p-4 rounded-lg text-center">
+                <div className="bg-primary/10 p-4 rounded-lg text-center space-y-3">
                   <p className="font-bold">Tournament in progress</p>
-                  <p className="text-sm text-muted-foreground">Round {tournament.status === 'in_progress' ? 'Active' : 'Completed'}</p>
+                  <p className="text-sm text-muted-foreground">Round Active</p>
+                  {activeGameId ? (
+                    <Button 
+                      onClick={() => navigate(`/game/${activeGameId}`)} 
+                      className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
+                    >
+                      <Play className="h-4 w-4 mr-2" />
+                      Play Now
+                    </Button>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No active game found</p>
+                  )}
                 </div>
               )}
             </CardContent>
