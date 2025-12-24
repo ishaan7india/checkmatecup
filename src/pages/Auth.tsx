@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Crown, Eye, EyeOff, Upload, User } from "lucide-react";
+import { Crown, Eye, EyeOff, Upload, User, Check, X, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 const Auth = () => {
@@ -26,6 +26,8 @@ const Auth = () => {
   const [signUpFullName, setSignUpFullName] = useState("");
   const [signUpPassword, setSignUpPassword] = useState("");
   const [signUpConfirmPassword, setSignUpConfirmPassword] = useState("");
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [usernameError, setUsernameError] = useState<string | null>(null);
 
   const { signIn, signUp, user } = useAuth();
   const { toast } = useToast();
@@ -36,6 +38,44 @@ const Auth = () => {
     navigate('/');
     return null;
   }
+
+  // Check username availability with debounce
+  useEffect(() => {
+    if (signUpUsername.length < 3) {
+      setUsernameStatus('idle');
+      setUsernameError(signUpUsername.length > 0 ? 'Username must be at least 3 characters' : null);
+      return;
+    }
+
+    // Validate username format
+    const usernameRegex = /^[a-zA-Z0-9_]+$/;
+    if (!usernameRegex.test(signUpUsername)) {
+      setUsernameStatus('idle');
+      setUsernameError('Username can only contain letters, numbers, and underscores');
+      return;
+    }
+
+    setUsernameError(null);
+    setUsernameStatus('checking');
+
+    const timeoutId = setTimeout(async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('username', signUpUsername)
+        .maybeSingle();
+
+      if (data) {
+        setUsernameStatus('taken');
+        setUsernameError('This username is already taken');
+      } else {
+        setUsernameStatus('available');
+        setUsernameError(null);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [signUpUsername]);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -112,11 +152,11 @@ const Auth = () => {
       return;
     }
 
-    if (signUpUsername.length < 3) {
+    if (signUpUsername.length < 3 || usernameStatus === 'taken' || usernameError) {
       toast({
         variant: "destructive",
-        title: "Username too short",
-        description: "Username must be at least 3 characters.",
+        title: "Invalid username",
+        description: usernameError || "Please choose a valid unique username.",
       });
       return;
     }
@@ -287,14 +327,29 @@ const Auth = () => {
 
                   <div className="space-y-2">
                     <Label htmlFor="signup-username">Username *</Label>
-                    <Input
-                      id="signup-username"
-                      placeholder="Choose a unique username"
-                      value={signUpUsername}
-                      onChange={(e) => setSignUpUsername(e.target.value)}
-                      required
-                      minLength={3}
-                    />
+                    <div className="relative">
+                      <Input
+                        id="signup-username"
+                        placeholder="Choose a unique username"
+                        value={signUpUsername}
+                        onChange={(e) => setSignUpUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
+                        required
+                        minLength={3}
+                        maxLength={20}
+                        className={usernameStatus === 'taken' ? 'border-destructive pr-10' : usernameStatus === 'available' ? 'border-green-500 pr-10' : 'pr-10'}
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        {usernameStatus === 'checking' && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                        {usernameStatus === 'available' && <Check className="h-4 w-4 text-green-500" />}
+                        {usernameStatus === 'taken' && <X className="h-4 w-4 text-destructive" />}
+                      </div>
+                    </div>
+                    {usernameError && (
+                      <p className="text-xs text-destructive">{usernameError}</p>
+                    )}
+                    {usernameStatus === 'available' && (
+                      <p className="text-xs text-green-500">Username is available!</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">

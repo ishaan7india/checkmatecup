@@ -7,8 +7,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Camera, Edit2, Loader2, Trophy, Swords, Award, Target, Play } from "lucide-react";
+import { Camera, Edit2, Loader2, Trophy, Swords, Award, Target, Play, History, Crown, Minus } from "lucide-react";
 import { PlayerAvatar } from "@/components/PlayerAvatar";
+
+interface GameHistory {
+  id: string;
+  result: string;
+  round: number;
+  white_player_id: string;
+  black_player_id: string;
+  ended_at: string | null;
+  opponent_username: string;
+  opponent_avatar_url: string | null;
+  opponent_avatar_initials: string | null;
+  played_as: 'white' | 'black';
+}
 
 interface Tournament {
   id: string;
@@ -28,6 +41,7 @@ const Profile = () => {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [isRegistered, setIsRegistered] = useState(false);
   const [activeGameId, setActiveGameId] = useState<string | null>(null);
+  const [gameHistory, setGameHistory] = useState<GameHistory[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { toast } = useToast();
@@ -88,6 +102,50 @@ const Profile = () => {
           }
         }
       }
+    }
+    
+    // Fetch game history
+    if (profile) {
+      fetchGameHistory();
+    }
+  };
+
+  const fetchGameHistory = async () => {
+    if (!profile) return;
+
+    const { data: games } = await supabase
+      .from('games')
+      .select('id, result, round, white_player_id, black_player_id, ended_at')
+      .or(`white_player_id.eq.${profile.id},black_player_id.eq.${profile.id}`)
+      .not('result', 'in', '("pending","in_progress")')
+      .order('ended_at', { ascending: false })
+      .limit(10);
+
+    if (games && games.length > 0) {
+      // Fetch opponent data for each game
+      const historyWithOpponents: GameHistory[] = await Promise.all(
+        games.map(async (game) => {
+          const opponentId = game.white_player_id === profile.id 
+            ? game.black_player_id 
+            : game.white_player_id;
+          
+          const { data: opponent } = await supabase
+            .from('profiles')
+            .select('username, avatar_url, avatar_initials')
+            .eq('id', opponentId)
+            .single();
+
+          return {
+            ...game,
+            opponent_username: opponent?.username || 'Unknown',
+            opponent_avatar_url: opponent?.avatar_url || null,
+            opponent_avatar_initials: opponent?.avatar_initials || null,
+            played_as: game.white_player_id === profile.id ? 'white' : 'black',
+          } as GameHistory;
+        })
+      );
+
+      setGameHistory(historyWithOpponents);
     }
   };
 
@@ -333,6 +391,66 @@ const Profile = () => {
                   )}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Game History */}
+        {gameHistory.length > 0 && (
+          <Card className="border-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-5 w-5 text-primary" />
+                Recent Games
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {gameHistory.map((game) => {
+                  const isWin = (game.played_as === 'white' && game.result === 'white_wins') ||
+                               (game.played_as === 'black' && game.result === 'black_wins');
+                  const isLoss = (game.played_as === 'white' && game.result === 'black_wins') ||
+                                (game.played_as === 'black' && game.result === 'white_wins');
+                  const isDraw = game.result === 'draw';
+
+                  return (
+                    <div
+                      key={game.id}
+                      className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer hover:scale-[1.01] transition-all ${
+                        isWin ? 'bg-green-500/10 border-green-500/30' :
+                        isLoss ? 'bg-red-500/10 border-red-500/30' :
+                        'bg-muted border-muted-foreground/20'
+                      }`}
+                      onClick={() => navigate(`/game/${game.id}`)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <PlayerAvatar
+                          avatarUrl={game.opponent_avatar_url}
+                          initials={game.opponent_avatar_initials}
+                          name={game.opponent_username}
+                          size="sm"
+                        />
+                        <div>
+                          <p className="font-medium">vs {game.opponent_username}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Round {game.round} • {game.played_as === 'white' ? '♔ White' : '♚ Black'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isWin && <Crown className="h-5 w-5 text-green-500" />}
+                        {isLoss && <Target className="h-5 w-5 text-red-500" />}
+                        {isDraw && <Minus className="h-5 w-5 text-muted-foreground" />}
+                        <span className={`font-bold ${
+                          isWin ? 'text-green-500' : isLoss ? 'text-red-500' : 'text-muted-foreground'
+                        }`}>
+                          {isWin ? 'Won' : isLoss ? 'Lost' : 'Draw'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </CardContent>
           </Card>
         )}
