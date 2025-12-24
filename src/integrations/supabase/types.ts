@@ -79,6 +79,7 @@ export type Database = {
           black_ready: boolean | null
           black_time_remaining: number | null
           created_at: string
+          draw_offered_by: string | null
           ended_at: string | null
           fen: string | null
           id: string
@@ -96,6 +97,7 @@ export type Database = {
           black_ready?: boolean | null
           black_time_remaining?: number | null
           created_at?: string
+          draw_offered_by?: string | null
           ended_at?: string | null
           fen?: string | null
           id?: string
@@ -113,6 +115,7 @@ export type Database = {
           black_ready?: boolean | null
           black_time_remaining?: number | null
           created_at?: string
+          draw_offered_by?: string | null
           ended_at?: string | null
           fen?: string | null
           id?: string

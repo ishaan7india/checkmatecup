@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Trophy, Medal, Award } from "lucide-react";
 import { PlayerAvatar } from "@/components/PlayerAvatar";
+import { useOnlinePresence } from "@/hooks/useOnlinePresence";
 
 interface Player {
   id: string;
@@ -13,12 +14,14 @@ interface Player {
   score: number | null;
   games_played: number | null;
   games_won: number | null;
+  rating: number | null;
 }
 
 const Standings = () => {
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [tournamentName, setTournamentName] = useState("Christmas Gambit Cup 2K25");
+  const { isUserOnline } = useOnlinePresence();
 
   useEffect(() => {
     fetchStandings();
@@ -53,7 +56,7 @@ const Standings = () => {
     // Get ALL profiles ordered by score - no tournament registration required
     const { data } = await supabase
       .from('profiles')
-      .select('id, username, full_name, avatar_url, avatar_initials, score, games_played, games_won')
+      .select('id, username, full_name, avatar_url, avatar_initials, score, games_played, games_won, rating')
       .order('score', { ascending: false, nullsFirst: false })
       .order('games_won', { ascending: false, nullsFirst: false });
 
@@ -104,10 +107,10 @@ const Standings = () => {
                 {/* Header */}
                 <div className="grid grid-cols-12 gap-2 px-4 py-2 text-sm font-medium text-muted-foreground border-b">
                   <div className="col-span-1">#</div>
-                  <div className="col-span-6">Player</div>
+                  <div className="col-span-5">Player</div>
+                  <div className="col-span-2 text-center">Rating</div>
                   <div className="col-span-2 text-center">Score</div>
                   <div className="col-span-2 text-center">W/L</div>
-                  <div className="col-span-1 text-center">GP</div>
                 </div>
 
                 {/* Players */}
@@ -119,17 +122,22 @@ const Standings = () => {
                     <div className="col-span-1">
                       {getRankIcon(index)}
                     </div>
-                    <div className="col-span-6 flex items-center gap-3">
+                    <div className="col-span-5 flex items-center gap-3">
                       <PlayerAvatar
                         avatarUrl={player.avatar_url}
                         initials={player.avatar_initials}
                         name={player.full_name}
                         size="sm"
+                        showOnlineIndicator
+                        isOnline={isUserOnline(player.id)}
                       />
                       <div>
                         <p className="font-bold">{player.username}</p>
                         <p className="text-xs text-muted-foreground">{player.full_name}</p>
                       </div>
+                    </div>
+                    <div className="col-span-2 text-center">
+                      <span className="font-bold text-primary">{player.rating || 1200}</span>
                     </div>
                     <div className="col-span-2 text-center">
                       <span className="font-bold text-lg">{Number(player.score || 0).toFixed(1)}</span>
@@ -138,9 +146,6 @@ const Standings = () => {
                       <span className="text-green-500">{player.games_won || 0}</span>
                       <span className="text-muted-foreground">/</span>
                       <span className="text-red-500">{(player.games_played || 0) - (player.games_won || 0)}</span>
-                    </div>
-                    <div className="col-span-1 text-center text-muted-foreground">
-                      {player.games_played || 0}
                     </div>
                   </div>
                 ))}

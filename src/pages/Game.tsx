@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Clock, Flag, RotateCcw, Loader2, Play, CheckCircle } from "lucide-react";
+import { Clock, Flag, RotateCcw, Loader2, Play, CheckCircle, Handshake, X } from "lucide-react";
 import { PlayerAvatar } from "@/components/PlayerAvatar";
 import { useChessSounds } from "@/hooks/useChessSounds";
 import { PromotionDialog } from "@/components/PromotionDialog";
@@ -33,6 +33,7 @@ interface GameData {
   white_ready: boolean;
   black_ready: boolean;
   started_at: string | null;
+  draw_offered_by: string | null;
 }
 
 interface Player {
@@ -41,6 +42,7 @@ interface Player {
   full_name: string;
   avatar_url: string | null;
   avatar_initials: string | null;
+  rating: number | null;
 }
 
 const Game = () => {
@@ -112,13 +114,13 @@ const Game = () => {
 
       const { data: white } = await supabase
         .from('profiles')
-        .select('id, username, full_name, avatar_url, avatar_initials')
+        .select('id, username, full_name, avatar_url, avatar_initials, rating')
         .eq('id', data.white_player_id)
         .single();
       
       const { data: black } = await supabase
         .from('profiles')
-        .select('id, username, full_name, avatar_url, avatar_initials')
+        .select('id, username, full_name, avatar_url, avatar_initials, rating')
         .eq('id', data.black_player_id)
         .single();
 
@@ -501,6 +503,44 @@ const Game = () => {
     toast({ title: "You resigned", description: "Better luck next time!" });
   };
 
+  const offerDraw = async () => {
+    if (!gameData || !isPlayer || !canPlay) return;
+    
+    await supabase
+      .from('games')
+      .update({ draw_offered_by: profile?.id })
+      .eq('id', gameId);
+
+    toast({ title: "Draw offered", description: "Waiting for opponent's response..." });
+  };
+
+  const acceptDraw = async () => {
+    if (!gameData || !isPlayer || !canPlay) return;
+    
+    await supabase
+      .from('games')
+      .update({
+        result: 'draw' as any,
+        ended_at: new Date().toISOString(),
+        draw_offered_by: null,
+      })
+      .eq('id', gameId);
+
+    await updatePlayerScores('draw');
+    toast({ title: "Draw accepted", description: "Game ended in a draw!" });
+  };
+
+  const declineDraw = async () => {
+    if (!gameData || !isPlayer) return;
+    
+    await supabase
+      .from('games')
+      .update({ draw_offered_by: null })
+      .eq('id', gameId);
+
+    toast({ title: "Draw declined", description: "The game continues!" });
+  };
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -545,7 +585,7 @@ const Game = () => {
                   />
                   <div>
                     <p className="font-bold">{blackPlayer?.username || 'Black'}</p>
-                    <p className="text-xs text-muted-foreground">Black</p>
+                    <p className="text-xs text-muted-foreground">Black • {blackPlayer?.rating || 1200}</p>
                   </div>
                 </div>
                 <div className={`flex items-center gap-2 px-3 py-1 rounded-lg ${game.turn() === 'b' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
@@ -577,7 +617,7 @@ const Game = () => {
                   />
                   <div>
                     <p className="font-bold">{whitePlayer?.username || 'White'}</p>
-                    <p className="text-xs text-muted-foreground">White</p>
+                    <p className="text-xs text-muted-foreground">White • {whitePlayer?.rating || 1200}</p>
                   </div>
                 </div>
                 <div className={`flex items-center gap-2 px-3 py-1 rounded-lg ${game.turn() === 'w' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
@@ -656,11 +696,47 @@ const Game = () => {
                   </>
                 )}
 
+                {/* Draw offer received */}
+                {isPlayer && canPlay && gameData.draw_offered_by && gameData.draw_offered_by !== profile?.id && (
+                  <div className="p-3 bg-amber-500/20 border border-amber-500/30 rounded-lg space-y-2">
+                    <p className="text-sm font-medium text-center">Opponent offers a draw</p>
+                    <div className="flex gap-2">
+                      <Button variant="outline" className="flex-1" onClick={acceptDraw}>
+                        <Handshake className="h-4 w-4 mr-2" />
+                        Accept
+                      </Button>
+                      <Button variant="outline" className="flex-1" onClick={declineDraw}>
+                        <X className="h-4 w-4 mr-2" />
+                        Decline
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Draw offer pending */}
+                {isPlayer && canPlay && gameData.draw_offered_by === profile?.id && (
+                  <div className="p-3 bg-muted rounded-lg text-center">
+                    <Loader2 className="h-4 w-4 animate-spin mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">Draw offer pending...</p>
+                  </div>
+                )}
+
                 {isPlayer && canPlay && (
-                  <Button variant="destructive" className="w-full" onClick={resign}>
-                    <Flag className="h-4 w-4 mr-2" />
-                    Resign
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="secondary" 
+                      className="flex-1" 
+                      onClick={offerDraw}
+                      disabled={!!gameData.draw_offered_by}
+                    >
+                      <Handshake className="h-4 w-4 mr-2" />
+                      Offer Draw
+                    </Button>
+                    <Button variant="destructive" className="flex-1" onClick={resign}>
+                      <Flag className="h-4 w-4 mr-2" />
+                      Resign
+                    </Button>
+                  </div>
                 )}
 
                 <Button variant="outline" className="w-full" onClick={() => navigate('/standings')}>
