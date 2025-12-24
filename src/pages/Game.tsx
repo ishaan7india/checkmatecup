@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Clock, Flag, RotateCcw, Loader2 } from "lucide-react";
+import { Clock, Flag, RotateCcw, Loader2, Play, CheckCircle } from "lucide-react";
 import { PlayerAvatar } from "@/components/PlayerAvatar";
 import { useChessSounds } from "@/hooks/useChessSounds";
 import { PromotionDialog } from "@/components/PromotionDialog";
@@ -30,6 +30,9 @@ interface GameData {
   black_time_remaining: number | null;
   tournament_id: string;
   round: number;
+  white_ready: boolean;
+  black_ready: boolean;
+  started_at: string | null;
 }
 
 interface Player {
@@ -63,6 +66,8 @@ const Game = () => {
   const isPlayer = isWhite || isBlack;
   const isMyTurn = (game.turn() === 'w' && isWhite) || (game.turn() === 'b' && isBlack);
   const myColor = isWhite ? 'white' : 'black';
+  const gameStarted = gameData?.white_ready && gameData?.black_ready;
+  const canPlay = gameStarted && gameData?.result === 'in_progress';
 
   useEffect(() => {
     if (gameId) {
@@ -73,7 +78,8 @@ const Game = () => {
   }, [gameId]);
 
   useEffect(() => {
-    if (gameData?.result === 'in_progress') {
+    // Only run timer if game has started and is in progress
+    if (gameStarted && gameData?.result === 'in_progress') {
       const interval = setInterval(() => {
         if (game.turn() === 'w') {
           setWhiteTime(prev => Math.max(0, prev - 1));
@@ -83,7 +89,7 @@ const Game = () => {
       }, 1000);
       return () => clearInterval(interval);
     }
-  }, [gameData?.result, game]);
+  }, [gameStarted, gameData?.result, game]);
 
   const fetchGame = async () => {
     if (!gameId) return;
@@ -236,7 +242,7 @@ const Game = () => {
   }, [game]);
 
   const onSquareClick = useCallback((square: Square) => {
-    if (!isMyTurn || !gameData || gameData.result !== 'in_progress' || pendingPromotion) return;
+    if (!isMyTurn || !canPlay || pendingPromotion) return;
 
     if (selectedSquare && legalMoves.includes(square)) {
       if (isPromotionMove(selectedSquare, square)) {
@@ -256,15 +262,15 @@ const Game = () => {
       setSelectedSquare(null);
       setLegalMoves([]);
     }
-  }, [game, isMyTurn, gameData, selectedSquare, legalMoves, isWhite, pendingPromotion, isPromotionMove, executeMove, getMoveOptions]);
+  }, [game, isMyTurn, canPlay, selectedSquare, legalMoves, isWhite, pendingPromotion, isPromotionMove, executeMove, getMoveOptions]);
 
   const onPieceDragBegin = useCallback((_piece: string, sourceSquare: Square) => {
-    if (!isMyTurn || !gameData || gameData.result !== 'in_progress' || pendingPromotion) return false;
+    if (!isMyTurn || !canPlay || pendingPromotion) return false;
     
     setSelectedSquare(sourceSquare);
     setLegalMoves(getMoveOptions(sourceSquare));
     return true;
-  }, [isMyTurn, gameData, pendingPromotion, getMoveOptions]);
+  }, [isMyTurn, canPlay, pendingPromotion, getMoveOptions]);
 
   const onPieceDragEnd = useCallback(() => {
     setSelectedSquare(null);
@@ -272,7 +278,7 @@ const Game = () => {
   }, []);
 
   const onDrop = useCallback((sourceSquare: string, targetSquare: string): boolean => {
-    if (!isMyTurn || !gameData || gameData.result !== 'in_progress' || pendingPromotion) return false;
+    if (!isMyTurn || !canPlay || pendingPromotion) return false;
 
     const from = sourceSquare as Square;
     const to = targetSquare as Square;
@@ -288,7 +294,7 @@ const Game = () => {
     }
 
     return executeMove(from, to);
-  }, [game, isMyTurn, gameData, pendingPromotion, isPromotionMove, executeMove]);
+  }, [game, isMyTurn, canPlay, pendingPromotion, isPromotionMove, executeMove]);
 
   const customSquareStyles = useMemo(() => {
     const styles: Record<string, React.CSSProperties> = {};
@@ -357,8 +363,39 @@ const Game = () => {
     }
   };
 
-  const resign = async () => {
+  const setPlayerReady = async () => {
     if (!gameData || !isPlayer) return;
+
+    const updateData = isWhite 
+      ? { white_ready: true }
+      : { black_ready: true };
+
+    // Check if both will be ready after this update
+    const bothReady = isWhite 
+      ? (true && gameData.black_ready)
+      : (gameData.white_ready && true);
+
+    await supabase
+      .from('games')
+      .update({
+        ...updateData,
+        ...(bothReady ? { 
+          result: 'in_progress' as any,
+          started_at: new Date().toISOString()
+        } : {})
+      })
+      .eq('id', gameId);
+
+    if (bothReady) {
+      sounds.playGameStart();
+      toast({ title: "Game Started!", description: "White moves first. Good luck!" });
+    } else {
+      toast({ title: isWhite ? "Game Started!" : "Ready!", description: "Waiting for opponent..." });
+    }
+  };
+
+  const resign = async () => {
+    if (!gameData || !isPlayer || !gameStarted) return;
     
     const result = isWhite ? 'black_wins' : 'white_wins';
     
@@ -435,7 +472,7 @@ const Game = () => {
                   onPieceDragBegin={onPieceDragBegin}
                   onPieceDragEnd={onPieceDragEnd}
                   boardOrientation={isBlack ? 'black' : 'white'}
-                  arePiecesDraggable={isPlayer && isMyTurn && gameData.result === 'in_progress' && !pendingPromotion}
+                  arePiecesDraggable={isPlayer && isMyTurn && canPlay && !pendingPromotion}
                   customSquareStyles={customSquareStyles}
                 />
               </div>
@@ -468,7 +505,19 @@ const Game = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="text-center py-4 bg-muted rounded-lg">
-                  {gameData.result === 'in_progress' ? (
+                  {!gameStarted ? (
+                    <>
+                      <p className="font-bold text-lg">Waiting to Start</p>
+                      <div className="mt-2 space-y-1">
+                        <p className={`text-sm ${gameData.white_ready ? 'text-green-500' : 'text-muted-foreground'}`}>
+                          {gameData.white_ready ? '✓ White is ready' : '○ White not ready'}
+                        </p>
+                        <p className={`text-sm ${gameData.black_ready ? 'text-green-500' : 'text-muted-foreground'}`}>
+                          {gameData.black_ready ? '✓ Black is ready' : '○ Black not ready'}
+                        </p>
+                      </div>
+                    </>
+                  ) : gameData.result === 'in_progress' ? (
                     <>
                       <p className="font-bold text-lg">
                         {game.turn() === 'w' ? "White's Turn" : "Black's Turn"}
@@ -482,13 +531,42 @@ const Game = () => {
                   )}
                 </div>
 
-                {game.isCheck() && gameData.result === 'in_progress' && (
+                {game.isCheck() && canPlay && (
                   <div className="p-3 bg-destructive/10 text-destructive rounded-lg text-center font-bold animate-pulse">
                     CHECK!
                   </div>
                 )}
 
-                {isPlayer && gameData.result === 'in_progress' && (
+                {/* Start / Accept buttons */}
+                {isPlayer && !gameStarted && gameData.result === 'pending' && (
+                  <>
+                    {isWhite && !gameData.white_ready && (
+                      <Button className="w-full bg-green-600 hover:bg-green-700" onClick={setPlayerReady}>
+                        <Play className="h-4 w-4 mr-2" />
+                        Start Game
+                      </Button>
+                    )}
+                    {isWhite && gameData.white_ready && !gameData.black_ready && (
+                      <div className="p-3 bg-primary/10 rounded-lg text-center">
+                        <Loader2 className="h-4 w-4 animate-spin mx-auto mb-2" />
+                        <p className="text-sm">Waiting for Black to accept...</p>
+                      </div>
+                    )}
+                    {isBlack && !gameData.black_ready && gameData.white_ready && (
+                      <Button className="w-full bg-green-600 hover:bg-green-700" onClick={setPlayerReady}>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Accept & Start
+                      </Button>
+                    )}
+                    {isBlack && !gameData.white_ready && (
+                      <div className="p-3 bg-muted rounded-lg text-center">
+                        <p className="text-sm text-muted-foreground">Waiting for White to start the game...</p>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {isPlayer && canPlay && (
                   <Button variant="destructive" className="w-full" onClick={resign}>
                     <Flag className="h-4 w-4 mr-2" />
                     Resign
