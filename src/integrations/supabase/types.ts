@@ -161,6 +161,7 @@ export type Database = {
           games_won: number | null
           id: string
           rank: number | null
+          rating: number | null
           score: number | null
           updated_at: string
           user_id: string
@@ -177,6 +178,7 @@ export type Database = {
           games_won?: number | null
           id?: string
           rank?: number | null
+          rating?: number | null
           score?: number | null
           updated_at?: string
           user_id: string
@@ -193,6 +195,7 @@ export type Database = {
           games_won?: number | null
           id?: string
           rank?: number | null
+          rating?: number | null
           score?: number | null
           updated_at?: string
           user_id?: string

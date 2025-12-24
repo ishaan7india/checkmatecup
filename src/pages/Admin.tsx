@@ -6,8 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Crown, Play, Settings, Trophy, Users, Eye, EyeOff, Loader2, Award, UserPlus } from "lucide-react";
+import { Crown, Play, Settings, Trophy, Users, Eye, EyeOff, Loader2, Award, UserPlus, RotateCcw, Trash2 } from "lucide-react";
 import { PlayerAvatar } from "@/components/PlayerAvatar";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 interface Tournament {
   id: string;
@@ -254,6 +255,35 @@ const Admin = () => {
     setIsLoading(false);
   };
 
+  const resetTournament = async () => {
+    if (!tournament) return;
+    setIsLoading(true);
+    
+    try {
+      await adminAction('resetTournament', { tournamentId: tournament.id });
+      setTournament(null);
+      setRegisteredPlayers([]);
+      toast({ title: "Tournament reset!", description: "All data has been cleared." });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Failed to reset", description: String(error) });
+    }
+    setIsLoading(false);
+  };
+
+  const deleteAllAccounts = async () => {
+    setIsLoading(true);
+    
+    try {
+      await adminAction('deleteAllAccounts', {});
+      setPlayers([]);
+      setRegisteredPlayers([]);
+      toast({ title: "All accounts deleted!", description: "All user data has been removed." });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Failed to delete accounts", description: String(error) });
+    }
+    setIsLoading(false);
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -420,6 +450,57 @@ const Admin = () => {
                 ) : (
                   <p className="text-muted-foreground">Tournament completed</p>
                 )}
+              </div>
+
+              {/* Danger Zone */}
+              <div className="pt-4 border-t border-destructive/20 space-y-2">
+                <p className="text-sm font-medium text-destructive">Danger Zone</p>
+                
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" className="w-full border-destructive/50 text-destructive hover:bg-destructive/10" disabled={isLoading}>
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Reset Tournament
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Reset Tournament?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will delete the current tournament, all games, and remove all registered players. This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={resetTournament} className="bg-destructive hover:bg-destructive/90">
+                        Reset Tournament
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" className="w-full border-destructive/50 text-destructive hover:bg-destructive/10" disabled={isLoading}>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete All Accounts
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete All Accounts?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete ALL user accounts and their data. This action is IRREVERSIBLE and should only be used for complete reset.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={deleteAllAccounts} className="bg-destructive hover:bg-destructive/90">
+                        Delete All Accounts
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </CardContent>
           </Card>

@@ -322,16 +322,47 @@ const Game = () => {
 
     let whiteScore = 0;
     let blackScore = 0;
+    let whiteRatingChange = 0;
+    let blackRatingChange = 0;
+
+    // Get current ratings
+    const { data: whiteProfile } = await supabase
+      .from('profiles')
+      .select('rating')
+      .eq('id', gameData.white_player_id)
+      .single();
+
+    const { data: blackProfile } = await supabase
+      .from('profiles')
+      .select('rating')
+      .eq('id', gameData.black_player_id)
+      .single();
+
+    const whiteRating = whiteProfile?.rating || 1200;
+    const blackRating = blackProfile?.rating || 1200;
+
+    // Calculate expected scores (Elo formula)
+    const expectedWhite = 1 / (1 + Math.pow(10, (blackRating - whiteRating) / 400));
+    const expectedBlack = 1 - expectedWhite;
+
+    const K = 32; // K-factor
 
     if (result === 'white_wins') {
       whiteScore = 1;
+      whiteRatingChange = Math.round(K * (1 - expectedWhite));
+      blackRatingChange = Math.round(K * (0 - expectedBlack));
     } else if (result === 'black_wins') {
       blackScore = 1;
+      whiteRatingChange = Math.round(K * (0 - expectedWhite));
+      blackRatingChange = Math.round(K * (1 - expectedBlack));
     } else if (result === 'draw') {
       whiteScore = 0.5;
       blackScore = 0.5;
+      whiteRatingChange = Math.round(K * (0.5 - expectedWhite));
+      blackRatingChange = Math.round(K * (0.5 - expectedBlack));
     }
 
+    // Update tournament scores
     const { data: whiteTp } = await supabase
       .from('tournament_players')
       .select('score')
@@ -361,6 +392,17 @@ const Game = () => {
         .eq('tournament_id', gameData.tournament_id)
         .eq('player_id', gameData.black_player_id);
     }
+
+    // Update player ratings
+    await supabase
+      .from('profiles')
+      .update({ rating: whiteRating + whiteRatingChange })
+      .eq('id', gameData.white_player_id);
+
+    await supabase
+      .from('profiles')
+      .update({ rating: blackRating + blackRatingChange })
+      .eq('id', gameData.black_player_id);
   };
 
   const setPlayerReady = async () => {
@@ -586,7 +628,23 @@ const Game = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-sm font-mono bg-muted p-3 rounded-lg max-h-48 overflow-y-auto">
-                  {game.pgn() || 'No moves yet'}
+                  {game.history().length > 0 ? (
+                    <div className="space-y-1">
+                      {game.history().reduce<string[][]>((pairs, move, i) => {
+                        if (i % 2 === 0) pairs.push([move]);
+                        else pairs[pairs.length - 1].push(move);
+                        return pairs;
+                      }, []).map((pair, i) => (
+                        <div key={i} className="flex gap-2">
+                          <span className="text-muted-foreground w-6">{i + 1}.</span>
+                          <span className="w-16">{pair[0]}</span>
+                          <span className="w-16">{pair[1] || ''}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground">No moves yet</span>
+                  )}
                 </div>
               </CardContent>
             </Card>

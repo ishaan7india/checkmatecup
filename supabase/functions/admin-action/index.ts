@@ -150,6 +150,56 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case 'resetTournament': {
+        // Delete all games for this tournament
+        await supabase
+          .from('games')
+          .delete()
+          .eq('tournament_id', data.tournamentId);
+        
+        // Delete all tournament players
+        await supabase
+          .from('tournament_players')
+          .delete()
+          .eq('tournament_id', data.tournamentId);
+        
+        // Delete champions if any
+        await supabase
+          .from('champions')
+          .delete()
+          .eq('tournament_id', data.tournamentId);
+        
+        // Delete the tournament
+        await supabase
+          .from('tournaments')
+          .delete()
+          .eq('id', data.tournamentId);
+        
+        result = { success: true };
+        break;
+      }
+
+      case 'deleteAllAccounts': {
+        // Delete all profiles (this will cascade to related data)
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id');
+        
+        // Delete profiles
+        await supabase
+          .from('profiles')
+          .delete()
+          .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
+        
+        // Delete auth users through admin API
+        for (const profile of profiles || []) {
+          await supabase.auth.admin.deleteUser(profile.user_id);
+        }
+        
+        result = { success: true, count: profiles?.length || 0 };
+        break;
+      }
+
       default:
         throw new Error('Unknown action');
     }
