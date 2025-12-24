@@ -393,16 +393,64 @@ const Game = () => {
         .eq('player_id', gameData.black_player_id);
     }
 
-    // Update player ratings
-    await supabase
+    // Update player profiles (games_played, games_won, games_lost, score, rating)
+    const { data: whiteProfileData } = await supabase
       .from('profiles')
-      .update({ rating: whiteRating + whiteRatingChange })
-      .eq('id', gameData.white_player_id);
+      .select('games_played, games_won, games_lost, games_drawn, score')
+      .eq('id', gameData.white_player_id)
+      .single();
 
-    await supabase
+    const { data: blackProfileData } = await supabase
       .from('profiles')
-      .update({ rating: blackRating + blackRatingChange })
-      .eq('id', gameData.black_player_id);
+      .select('games_played, games_won, games_lost, games_drawn, score')
+      .eq('id', gameData.black_player_id)
+      .single();
+
+    if (whiteProfileData) {
+      const whiteWon = result === 'white_wins' ? 1 : 0;
+      const whiteLost = result === 'black_wins' ? 1 : 0;
+      const whiteDrawn = result === 'draw' ? 1 : 0;
+      
+      await supabase
+        .from('profiles')
+        .update({ 
+          rating: whiteRating + whiteRatingChange,
+          games_played: (whiteProfileData.games_played || 0) + 1,
+          games_won: (whiteProfileData.games_won || 0) + whiteWon,
+          games_lost: (whiteProfileData.games_lost || 0) + whiteLost,
+          games_drawn: (whiteProfileData.games_drawn || 0) + whiteDrawn,
+          score: Number(whiteProfileData.score || 0) + whiteScore,
+        })
+        .eq('id', gameData.white_player_id);
+    } else {
+      await supabase
+        .from('profiles')
+        .update({ rating: whiteRating + whiteRatingChange })
+        .eq('id', gameData.white_player_id);
+    }
+
+    if (blackProfileData) {
+      const blackWon = result === 'black_wins' ? 1 : 0;
+      const blackLost = result === 'white_wins' ? 1 : 0;
+      const blackDrawn = result === 'draw' ? 1 : 0;
+      
+      await supabase
+        .from('profiles')
+        .update({ 
+          rating: blackRating + blackRatingChange,
+          games_played: (blackProfileData.games_played || 0) + 1,
+          games_won: (blackProfileData.games_won || 0) + blackWon,
+          games_lost: (blackProfileData.games_lost || 0) + blackLost,
+          games_drawn: (blackProfileData.games_drawn || 0) + blackDrawn,
+          score: Number(blackProfileData.score || 0) + blackScore,
+        })
+        .eq('id', gameData.black_player_id);
+    } else {
+      await supabase
+        .from('profiles')
+        .update({ rating: blackRating + blackRatingChange })
+        .eq('id', gameData.black_player_id);
+    }
   };
 
   const setPlayerReady = async () => {

@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Crown, Play, Settings, Trophy, Users, Eye, EyeOff, Loader2, Award, UserPlus, RotateCcw, Trash2 } from "lucide-react";
+import { Crown, Play, Settings, Trophy, Users, Eye, EyeOff, Loader2, Award, UserPlus, RotateCcw, Trash2, SkipForward, Zap } from "lucide-react";
 import { PlayerAvatar } from "@/components/PlayerAvatar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
@@ -284,6 +284,79 @@ const Admin = () => {
     setIsLoading(false);
   };
 
+  const startNextRound = async () => {
+    if (!tournament) return;
+    setIsLoading(true);
+    
+    try {
+      // Check if all games in current round are completed
+      const { data: pendingGames } = await supabase
+        .from('games')
+        .select('id')
+        .eq('tournament_id', tournament.id)
+        .eq('round', tournament.current_round || 1)
+        .in('result', ['pending', 'in_progress']);
+      
+      if (pendingGames && pendingGames.length > 0) {
+        toast({ variant: "destructive", title: "Cannot start next round", description: `${pendingGames.length} games still pending in current round` });
+        setIsLoading(false);
+        return;
+      }
+      
+      await adminAction('advanceRound', { tournamentId: tournament.id });
+      await generatePairings();
+      toast({ title: "Next round started!", description: `Round ${(tournament.current_round || 0) + 1} pairings created` });
+      fetchTournament();
+    } catch (error) {
+      toast({ variant: "destructive", title: "Failed to start next round", description: String(error) });
+    }
+    setIsLoading(false);
+  };
+
+  const startSuperLeague = async () => {
+    if (!tournament) return;
+    setIsLoading(true);
+    
+    try {
+      // Get top 4 players for super league
+      const { data: topPlayers } = await supabase
+        .from('tournament_players')
+        .select('player_id, score')
+        .eq('tournament_id', tournament.id)
+        .order('score', { ascending: false })
+        .limit(4);
+      
+      if (!topPlayers || topPlayers.length < 4) {
+        toast({ variant: "destructive", title: "Not enough players", description: "Need at least 4 players for super league" });
+        setIsLoading(false);
+        return;
+      }
+      
+      // Create round robin pairings for top 4
+      const playerIds = topPlayers.map(p => p.player_id);
+      const nextRound = (tournament.current_round || 0) + 1;
+      
+      // Round robin: each player plays against every other player
+      for (let i = 0; i < playerIds.length; i++) {
+        for (let j = i + 1; j < playerIds.length; j++) {
+          await adminAction('createGame', {
+            tournamentId: tournament.id,
+            round: nextRound,
+            whitePlayerId: playerIds[i],
+            blackPlayerId: playerIds[j],
+          });
+        }
+      }
+      
+      await adminAction('advanceRound', { tournamentId: tournament.id });
+      toast({ title: "Super League started!", description: "Top 4 players will face each other" });
+      fetchTournament();
+    } catch (error) {
+      toast({ variant: "destructive", title: "Failed to start super league", description: String(error) });
+    }
+    setIsLoading(false);
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -443,10 +516,22 @@ const Admin = () => {
                     </Button>
                   </>
                 ) : tournament.status === 'in_progress' ? (
-                  <Button onClick={publishResults} disabled={isLoading}>
-                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Award className="h-4 w-4 mr-2" />}
-                    Publish Results
-                  </Button>
+                  <div className="space-y-2">
+                    <Button onClick={startNextRound} disabled={isLoading} className="w-full">
+                      {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <SkipForward className="h-4 w-4 mr-2" />}
+                      Start Next Round
+                    </Button>
+                    {(tournament.format === 'swiss_super_league' || tournament.format === 'swiss_playoffs') && (
+                      <Button onClick={startSuperLeague} disabled={isLoading} variant="secondary" className="w-full">
+                        {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Zap className="h-4 w-4 mr-2" />}
+                        Start Super League / Playoffs
+                      </Button>
+                    )}
+                    <Button onClick={publishResults} disabled={isLoading} variant="outline" className="w-full">
+                      {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Award className="h-4 w-4 mr-2" />}
+                      Publish Results
+                    </Button>
+                  </div>
                 ) : (
                   <p className="text-muted-foreground">Tournament completed</p>
                 )}
