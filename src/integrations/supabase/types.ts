@@ -76,6 +76,7 @@ export type Database = {
       games: {
         Row: {
           black_player_id: string
+          black_ready: boolean | null
           black_time_remaining: number | null
           created_at: string
           ended_at: string | null
@@ -87,10 +88,12 @@ export type Database = {
           started_at: string | null
           tournament_id: string
           white_player_id: string
+          white_ready: boolean | null
           white_time_remaining: number | null
         }
         Insert: {
           black_player_id: string
+          black_ready?: boolean | null
           black_time_remaining?: number | null
           created_at?: string
           ended_at?: string | null
@@ -102,10 +105,12 @@ export type Database = {
           started_at?: string | null
           tournament_id: string
           white_player_id: string
+          white_ready?: boolean | null
           white_time_remaining?: number | null
         }
         Update: {
           black_player_id?: string
+          black_ready?: boolean | null
           black_time_remaining?: number | null
           created_at?: string
           ended_at?: string | null
@@ -117,6 +122,7 @@ export type Database = {
           started_at?: string | null
           tournament_id?: string
           white_player_id?: string
+          white_ready?: boolean | null
           white_time_remaining?: number | null
         }
         Relationships: [
