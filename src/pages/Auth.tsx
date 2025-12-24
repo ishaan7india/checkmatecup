@@ -123,8 +123,25 @@ const Auth = () => {
 
     setIsLoading(true);
 
-    // For now, we'll handle avatar upload after user creation
-    const { error } = await signUp(signUpUsername, signUpPassword, signUpFullName);
+    // Upload avatar first if selected
+    let avatarUrl: string | undefined;
+    if (avatarFile) {
+      // We need to create a temporary ID for the file
+      const tempId = `${Date.now()}`;
+      const fileExt = avatarFile.name.split('.').pop();
+      const fileName = `temp/${tempId}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, avatarFile, { upsert: true });
+
+      if (!uploadError) {
+        const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+        avatarUrl = data.publicUrl;
+      }
+    }
+
+    const { error } = await signUp(signUpUsername, signUpPassword, signUpFullName, avatarUrl);
 
     if (error) {
       toast({

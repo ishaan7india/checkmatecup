@@ -200,6 +200,26 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case 'advanceRound': {
+        // Get current tournament state
+        const { data: tournament } = await supabase
+          .from('tournaments')
+          .select('current_round')
+          .eq('id', data.tournamentId)
+          .single();
+        
+        const nextRound = (tournament?.current_round || 0) + 1;
+        
+        const { error } = await supabase
+          .from('tournaments')
+          .update({ current_round: nextRound })
+          .eq('id', data.tournamentId);
+        
+        if (error) throw error;
+        result = { success: true, round: nextRound };
+        break;
+      }
+
       default:
         throw new Error('Unknown action');
     }
