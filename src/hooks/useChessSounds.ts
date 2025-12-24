@@ -71,6 +71,15 @@ export const useChessSounds = () => {
     setTimeout(() => playTone(392, 0.2, 'sine'), 300);
   }, [playTone]);
 
+  const playTimeWarning = useCallback(() => {
+    playTone(880, 0.08, 'square');
+  }, [playTone]);
+
+  const playDraw = useCallback(() => {
+    playTone(440, 0.15, 'sine');
+    setTimeout(() => playTone(440, 0.15, 'sine'), 200);
+  }, [playTone]);
+
   return {
     playMove,
     playCapture,
@@ -79,5 +88,7 @@ export const useChessSounds = () => {
     playCastle,
     playPromotion,
     playGameStart,
+    playTimeWarning,
+    playDraw,
   };
 };

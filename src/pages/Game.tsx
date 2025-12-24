@@ -62,6 +62,8 @@ const Game = () => {
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [legalMoves, setLegalMoves] = useState<Square[]>([]);
   const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null);
+  const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(null);
+  const [timeWarningPlayed, setTimeWarningPlayed] = useState(false);
 
   const isWhite = profile?.id === gameData?.white_player_id;
   const isBlack = profile?.id === gameData?.black_player_id;
@@ -84,14 +86,34 @@ const Game = () => {
     if (gameStarted && gameData?.result === 'in_progress') {
       const interval = setInterval(() => {
         if (game.turn() === 'w') {
-          setWhiteTime(prev => Math.max(0, prev - 1));
+          setWhiteTime(prev => {
+            const newTime = Math.max(0, prev - 1);
+            // Play warning sound at 30 seconds
+            if (newTime === 30 && isWhite && !timeWarningPlayed) {
+              sounds.playTimeWarning();
+              setTimeWarningPlayed(true);
+            }
+            return newTime;
+          });
         } else {
-          setBlackTime(prev => Math.max(0, prev - 1));
+          setBlackTime(prev => {
+            const newTime = Math.max(0, prev - 1);
+            if (newTime === 30 && isBlack && !timeWarningPlayed) {
+              sounds.playTimeWarning();
+              setTimeWarningPlayed(true);
+            }
+            return newTime;
+          });
         }
       }, 1000);
       return () => clearInterval(interval);
     }
-  }, [gameStarted, gameData?.result, game]);
+  }, [gameStarted, gameData?.result, game, isWhite, isBlack, timeWarningPlayed, sounds]);
+
+  // Reset time warning when turn changes
+  useEffect(() => {
+    setTimeWarningPlayed(false);
+  }, [game.turn()]);
 
   const fetchGame = async () => {
     if (!gameId) return;
@@ -195,6 +217,7 @@ const Game = () => {
       setGame(gameCopy);
       setSelectedSquare(null);
       setLegalMoves([]);
+      setLastMove({ from, to });
       playMoveSound(move);
 
       const newFen = gameCopy.fen();
@@ -301,15 +324,28 @@ const Game = () => {
   const customSquareStyles = useMemo(() => {
     const styles: Record<string, React.CSSProperties> = {};
     
+    // Highlight last move
+    if (lastMove) {
+      styles[lastMove.from] = {
+        backgroundColor: 'rgba(155, 199, 0, 0.4)',
+      };
+      styles[lastMove.to] = {
+        backgroundColor: 'rgba(155, 199, 0, 0.5)',
+      };
+    }
+    
+    // Highlight selected square
     if (selectedSquare) {
       styles[selectedSquare] = {
         backgroundColor: 'rgba(255, 255, 0, 0.4)',
       };
     }
     
+    // Show legal moves
     legalMoves.forEach(square => {
       const piece = game.get(square as Square);
       styles[square] = {
+        ...styles[square],
         background: piece 
           ? 'radial-gradient(circle, rgba(255, 0, 0, 0.4) 85%, transparent 85%)'
           : 'radial-gradient(circle, rgba(0, 128, 0, 0.4) 25%, transparent 25%)',
@@ -317,7 +353,7 @@ const Game = () => {
     });
     
     return styles;
-  }, [selectedSquare, legalMoves, game]);
+  }, [selectedSquare, legalMoves, game, lastMove]);
 
   const updatePlayerScores = async (result: string) => {
     if (!gameData) return;
@@ -588,7 +624,13 @@ const Game = () => {
                     <p className="text-xs text-muted-foreground">Black • {blackPlayer?.rating || 1200}</p>
                   </div>
                 </div>
-                <div className={`flex items-center gap-2 px-3 py-1 rounded-lg ${game.turn() === 'b' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                <div className={`flex items-center gap-2 px-3 py-1 rounded-lg transition-colors ${
+                  game.turn() === 'b' 
+                    ? blackTime <= 30 
+                      ? 'bg-destructive text-destructive-foreground animate-pulse' 
+                      : 'bg-primary text-primary-foreground' 
+                    : 'bg-muted'
+                }`}>
                   <Clock className="h-4 w-4" />
                   <span className="font-mono font-bold">{formatTime(blackTime)}</span>
                 </div>
@@ -620,7 +662,13 @@ const Game = () => {
                     <p className="text-xs text-muted-foreground">White • {whitePlayer?.rating || 1200}</p>
                   </div>
                 </div>
-                <div className={`flex items-center gap-2 px-3 py-1 rounded-lg ${game.turn() === 'w' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                <div className={`flex items-center gap-2 px-3 py-1 rounded-lg transition-colors ${
+                  game.turn() === 'w' 
+                    ? whiteTime <= 30 
+                      ? 'bg-destructive text-destructive-foreground animate-pulse' 
+                      : 'bg-primary text-primary-foreground' 
+                    : 'bg-muted'
+                }`}>
                   <Clock className="h-4 w-4" />
                   <span className="font-mono font-bold">{formatTime(whiteTime)}</span>
                 </div>
