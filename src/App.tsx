@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { Navbar } from "@/components/Navbar";
-import { SnowEffect } from "@/components/SnowEffect";
+import { SpaceBackground } from "@/components/SpaceBackground";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Profile from "./pages/Profile";
@@ -26,7 +26,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <SnowEffect />
+          <SpaceBackground />
           <Routes>
             <Route path="/admin" element={<Admin />} />
             <Route path="*" element={

@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Crown, Play, Settings, Trophy, Users, Eye, EyeOff, Loader2, Award, UserPlus, RotateCcw, Trash2, SkipForward, Zap } from "lucide-react";
+import { Crown, Play, Settings, Trophy, Users, Eye, EyeOff, Loader2, Award, UserPlus, RotateCcw, Trash2, SkipForward, Zap, Swords } from "lucide-react";
 import { PlayerAvatar } from "@/components/PlayerAvatar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
@@ -29,9 +29,17 @@ interface Player {
   score: number;
 }
 
-const ADMIN_KEY = "ChristmasGambit2K25Admin";
+const ADMIN_KEY = "CheckmateCup2K25Admin";
 const ADMIN_USERNAME = "Admin";
 const ADMIN_PASSWORD = "P@s$w0rd";
+
+interface RoundGame {
+  id: string;
+  white_player: { username: string; avatar_url: string | null; avatar_initials: string | null };
+  black_player: { username: string; avatar_url: string | null; avatar_initials: string | null };
+  result: string;
+  round: number;
+}
 
 const Admin = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -42,6 +50,7 @@ const Admin = () => {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [registeredPlayers, setRegisteredPlayers] = useState<string[]>([]);
+  const [roundGames, setRoundGames] = useState<RoundGame[]>([]);
   
   const [format, setFormat] = useState("swiss");
   const [timeControl, setTimeControl] = useState("10 | 5");
@@ -52,6 +61,7 @@ const Admin = () => {
     if (isAuthenticated) {
       fetchTournament();
       fetchPlayers();
+      fetchRoundGames();
     }
   }, [isAuthenticated]);
 
@@ -100,6 +110,33 @@ const Admin = () => {
     }
   };
 
+  const fetchRoundGames = async () => {
+    if (!tournament) return;
+    
+    const { data } = await supabase
+      .from('games')
+      .select(`
+        id,
+        result,
+        round,
+        white_player:profiles!games_white_player_id_fkey(username, avatar_url, avatar_initials),
+        black_player:profiles!games_black_player_id_fkey(username, avatar_url, avatar_initials)
+      `)
+      .eq('tournament_id', tournament.id)
+      .eq('round', tournament.current_round || 1)
+      .order('created_at', { ascending: true });
+
+    if (data) {
+      setRoundGames(data as unknown as RoundGame[]);
+    }
+  };
+
+  useEffect(() => {
+    if (tournament) {
+      fetchRoundGames();
+    }
+  }, [tournament]);
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
@@ -114,7 +151,7 @@ const Admin = () => {
     setIsLoading(true);
     try {
       const result = await adminAction('createTournament', {
-        name: 'Christmas Gambit Cup 2K25',
+        name: 'Checkmate Cup 2K25',
         format,
         timeControl,
       });
@@ -586,6 +623,43 @@ const Admin = () => {
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Swords className="h-5 w-5" />
+                Round {tournament?.current_round || 1} Matches ({roundGames.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {roundGames.map((game) => (
+                  <div key={game.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <PlayerAvatar avatarUrl={game.white_player?.avatar_url} initials={game.white_player?.avatar_initials} name={game.white_player?.username || ''} size="sm" />
+                      <span className="font-medium">{game.white_player?.username}</span>
+                    </div>
+                    <div className={`px-3 py-1 rounded text-sm font-bold ${
+                      game.result === 'white_wins' ? 'bg-green-500/20 text-green-500' :
+                      game.result === 'black_wins' ? 'bg-red-500/20 text-red-500' :
+                      game.result === 'draw' ? 'bg-yellow-500/20 text-yellow-500' :
+                      game.result === 'in_progress' ? 'bg-blue-500/20 text-blue-500' :
+                      'bg-muted-foreground/20 text-muted-foreground'
+                    }`}>
+                      {game.result === 'pending' ? 'Scheduled' : game.result === 'in_progress' ? 'Playing' : game.result.replace('_', ' ')}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{game.black_player?.username}</span>
+                      <PlayerAvatar avatarUrl={game.black_player?.avatar_url} initials={game.black_player?.avatar_initials} name={game.black_player?.username || ''} size="sm" />
+                    </div>
+                  </div>
+                ))}
+                {roundGames.length === 0 && (
+                  <p className="text-muted-foreground text-center py-4">No matches in this round yet</p>
+                )}
               </div>
             </CardContent>
           </Card>

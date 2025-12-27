@@ -14,7 +14,7 @@ export default {
     },
     extend: {
       fontFamily: {
-        display: ['Cinzel', 'serif'],
+        display: ['Orbitron', 'Cinzel', 'serif'],
         body: ['Playfair Display', 'serif'],
         gamer: ['Orbitron', 'sans-serif'],
         'gamer-body': ['Rajdhani', 'sans-serif'],
@@ -63,11 +63,11 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
-        christmas: {
-          red: "hsl(var(--christmas-red))",
-          green: "hsl(var(--christmas-green))",
-          gold: "hsl(var(--christmas-gold))",
-          cream: "hsl(var(--christmas-cream))",
+        space: {
+          purple: "hsl(var(--space-purple))",
+          blue: "hsl(var(--space-blue))",
+          cyan: "hsl(var(--space-cyan))",
+          pink: "hsl(var(--nebula-pink))",
         },
         neon: {
           cyan: "hsl(var(--neon-cyan))",
@@ -117,6 +117,10 @@ export default {
           "0%": { filter: "hue-rotate(0deg)" },
           "100%": { filter: "hue-rotate(360deg)" },
         },
+        "pulse-slow": {
+          "0%, 100%": { opacity: "0.4" },
+          "50%": { opacity: "1" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -128,10 +132,11 @@ export default {
         "float": "float 3s ease-in-out infinite",
         "glow-pulse": "glow-pulse 2s ease-in-out infinite",
         "rgb-shift": "rgb-shift 5s linear infinite",
+        "pulse-slow": "pulse-slow 3s ease-in-out infinite",
       },
       backgroundImage: {
-        'christmas-gradient': 'linear-gradient(135deg, hsl(0 70% 45%) 0%, hsl(140 45% 35%) 100%)',
-        'gold-gradient': 'linear-gradient(135deg, hsl(45 90% 55%) 0%, hsl(35 90% 50%) 100%)',
+        'space-gradient': 'linear-gradient(135deg, hsl(250 85% 60%) 0%, hsl(280 80% 60%) 50%, hsl(320 90% 60%) 100%)',
+        'nebula-gradient': 'linear-gradient(135deg, hsl(240 20% 4%) 0%, hsl(280 50% 15%) 50%, hsl(240 20% 4%) 100%)',
         'neon-gradient': 'linear-gradient(135deg, hsl(185 100% 50%) 0%, hsl(280 80% 60%) 50%, hsl(320 90% 60%) 100%)',
         'glass-gradient': 'linear-gradient(135deg, hsl(var(--card) / 0.8) 0%, hsl(var(--card) / 0.4) 100%)',
       },

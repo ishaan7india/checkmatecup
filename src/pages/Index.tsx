@@ -1,4 +1,4 @@
-import { Crown, Trophy, Users, Swords, Calendar, ChevronRight } from "lucide-react";
+import { Crown, Trophy, Users, Swords, Calendar, ChevronRight, Rocket, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,7 +8,7 @@ const Index = () => {
   const { user } = useAuth();
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen relative">
       {/* Hero Section */}
       <section className="relative py-20 md:py-32 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-secondary/10" />
@@ -17,27 +17,27 @@ const Index = () => {
             <div className="flex justify-center mb-6">
               <div className="relative">
                 <Crown className="h-24 w-24 text-primary trophy-shine" />
-                <span className="absolute -top-4 -right-4 text-4xl animate-float">🎄</span>
-                <span className="absolute -bottom-2 -left-4 text-3xl animate-float" style={{ animationDelay: '0.5s' }}>❄️</span>
+                <Rocket className="absolute -top-4 -right-4 h-8 w-8 text-secondary animate-float" />
+                <Sparkles className="absolute -bottom-2 -left-4 h-6 w-6 text-accent animate-float" style={{ animationDelay: '0.5s' }} />
               </div>
             </div>
             
-            <h1 className="font-display text-4xl md:text-6xl lg:text-7xl font-bold mb-6 bg-clip-text text-transparent bg-christmas-gradient dark:bg-neon-gradient">
-              Christmas Gambit Cup
+            <h1 className="font-display text-4xl md:text-6xl lg:text-7xl font-bold mb-6 bg-clip-text text-transparent bg-neon-gradient dark:rgb-text">
+              Checkmate Cup
             </h1>
-            <p className="font-gamer text-2xl md:text-3xl text-accent dark:text-neon-cyan mb-4">
-              • DPSBE 2K25 •
+            <p className="font-gamer text-2xl md:text-3xl text-secondary dark:text-neon-cyan mb-4">
+              ♟️ DPSBE 2K25 ♟️
             </p>
             <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto font-gamer-body">
               The ultimate DPSBE chess tournament. Compete, strategize, and claim your place among champions.
             </p>
 
-            <div className="candy-divider w-48 mx-auto mb-8 dark:hidden" />
+            <div className="space-divider w-48 mx-auto mb-8" />
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               {!user ? (
                 <Link to="/auth">
-                  <Button size="lg" className="gap-2 text-lg px-8 animate-glow-pulse">
+                  <Button size="lg" className="gap-2 text-lg px-8 animate-glow-pulse dark:rgb-glow">
                     <Swords className="h-5 w-5" />
                     Join Tournament
                   </Button>
@@ -65,7 +65,7 @@ const Index = () => {
       <section className="py-16 bg-card/50">
         <div className="container mx-auto px-4">
           <div className="grid md:grid-cols-3 gap-6">
-            <Card className="card-hover border-2 group">
+            <Card className="card-hover border-2 group dark:rgb-border">
               <CardContent className="pt-6 text-center">
                 <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
                   <Swords className="h-8 w-8 text-primary" />
@@ -77,7 +77,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <Card className="card-hover border-2 group">
+            <Card className="card-hover border-2 group dark:rgb-border" style={{ animationDelay: '0.1s' }}>
               <CardContent className="pt-6 text-center">
                 <div className="h-16 w-16 rounded-full bg-secondary/20 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
                   <Trophy className="h-8 w-8 text-secondary dark:text-neon-purple" />
@@ -89,7 +89,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <Card className="card-hover border-2 group">
+            <Card className="card-hover border-2 group dark:rgb-border" style={{ animationDelay: '0.2s' }}>
               <CardContent className="pt-6 text-center">
                 <div className="h-16 w-16 rounded-full bg-accent/20 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
                   <Calendar className="h-8 w-8 text-accent dark:text-neon-magenta" />
@@ -111,10 +111,10 @@ const Index = () => {
             Ready to Make Your Move?
           </h2>
           <p className="text-muted-foreground mb-8 font-gamer-body text-lg">
-            Join the tournament and compete for the Christmas Gambit Cup!
+            Join the tournament and compete for the Checkmate Cup!
           </p>
           <Link to={user ? "/profile" : "/auth"}>
-            <Button size="lg" className="gap-2">
+            <Button size="lg" className="gap-2 dark:rgb-glow">
               Get Started <ChevronRight className="h-5 w-5" />
             </Button>
           </Link>
@@ -124,7 +124,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="py-8 border-t border-border">
         <div className="container mx-auto px-4 text-center text-muted-foreground font-gamer-body">
-          <p>🎄 Christmas Gambit Cup • DPSBE 2K25 ♟️</p>
+          <p>🚀 Checkmate Cup • DPSBE 2K25 ♟️</p>
         </div>
       </footer>
     </div>
