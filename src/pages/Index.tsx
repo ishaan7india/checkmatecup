@@ -26,7 +26,7 @@ const Index = () => {
               Checkmate Cup
             </h1>
             <p className="font-gamer text-2xl md:text-3xl text-secondary dark:text-neon-cyan mb-4">
-              ♟️ DPSBE 2K25 ♟️
+              • DPSBE 2K25 •
             </p>
             <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto font-gamer-body">
               The ultimate DPSBE chess tournament. Compete, strategize, and claim your place among champions.
