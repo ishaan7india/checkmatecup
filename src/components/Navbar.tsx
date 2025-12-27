@@ -27,7 +27,7 @@ export const Navbar = () => {
                 Checkmate Cup
               </span>
               <span className="text-xs text-muted-foreground font-gamer-body">
-                DPSBE 2K25 ♟️
+                DPSBE 2K25 •
               </span>
             </div>
           </Link>
