@@ -17,13 +17,13 @@ export const Navbar = () => {
     <nav className="sticky top-0 z-40 w-full border-b border-border bg-background/80 backdrop-blur-md">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 group">
+          <Link to="/" className="flex items-center gap-3 group fire-hover">
             <div className="relative">
-              <Crown className="h-8 w-8 text-primary group-hover:animate-float transition-all" />
+              <Crown className="h-8 w-8 text-primary animate-float transition-all" />
               <Rocket className="absolute -top-1 -right-1 h-4 w-4 text-secondary" />
             </div>
             <div className="flex flex-col">
-              <span className="font-display text-lg font-bold tracking-wide text-foreground">
+              <span className="font-display text-lg font-bold tracking-wide text-foreground fire-text-hover">
                 Checkmate Cup
               </span>
               <span className="text-xs text-muted-foreground font-gamer-body">
