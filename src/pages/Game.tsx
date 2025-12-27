@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Chess, Square } from "chess.js";
 import { Chessboard } from "react-chessboard";
@@ -11,12 +11,19 @@ import { Clock, Flag, RotateCcw, Loader2, Play, CheckCircle, Handshake, X } from
 import { PlayerAvatar } from "@/components/PlayerAvatar";
 import { useChessSounds } from "@/hooks/useChessSounds";
 import { PromotionDialog } from "@/components/PromotionDialog";
+import { CaptureExplosion } from "@/components/CaptureExplosion";
 
 type PromotionPiece = 'q' | 'r' | 'b' | 'n';
 
 interface PendingPromotion {
   from: Square;
   to: Square;
+}
+
+interface CaptureExplosionData {
+  id: number;
+  x: number;
+  y: number;
 }
 
 interface GameData {
@@ -51,6 +58,7 @@ const Game = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const sounds = useChessSounds();
+  const boardRef = useRef<HTMLDivElement>(null);
 
   const [game, setGame] = useState<Chess>(new Chess());
   const [gameData, setGameData] = useState<GameData | null>(null);
@@ -64,6 +72,7 @@ const Game = () => {
   const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null);
   const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(null);
   const [timeWarningPlayed, setTimeWarningPlayed] = useState(false);
+  const [captureExplosions, setCaptureExplosions] = useState<CaptureExplosionData[]>([]);
 
   const isWhite = profile?.id === gameData?.white_player_id;
   const isBlack = profile?.id === gameData?.black_player_id;
@@ -182,13 +191,40 @@ const Game = () => {
     };
   };
 
-  const playMoveSound = useCallback((move: { captured?: string; san: string; flags: string }) => {
+  const triggerCaptureExplosion = useCallback((square: Square) => {
+    if (!boardRef.current) return;
+    
+    const boardRect = boardRef.current.getBoundingClientRect();
+    const squareSize = boardRect.width / 8;
+    
+    // Convert square notation to coordinates
+    const file = square.charCodeAt(0) - 'a'.charCodeAt(0);
+    const rank = parseInt(square[1]) - 1;
+    
+    // Adjust for board orientation (if black's perspective, flip)
+    const isBlackPerspective = !isWhite && isBlack;
+    const adjustedFile = isBlackPerspective ? 7 - file : file;
+    const adjustedRank = isBlackPerspective ? rank : 7 - rank;
+    
+    const x = boardRect.left + (adjustedFile + 0.5) * squareSize;
+    const y = boardRect.top + (adjustedRank + 0.5) * squareSize;
+    
+    const explosionId = Date.now() + Math.random();
+    setCaptureExplosions(prev => [...prev, { id: explosionId, x, y }]);
+  }, [isWhite, isBlack]);
+
+  const removeCaptureExplosion = useCallback((id: number) => {
+    setCaptureExplosions(prev => prev.filter(e => e.id !== id));
+  }, []);
+
+  const playMoveSound = useCallback((move: { captured?: string; san: string; flags: string; to: string }) => {
     if (move.san.includes('#')) {
       sounds.playCheckmate();
     } else if (move.san.includes('+')) {
       sounds.playCheck();
     } else if (move.captured) {
       sounds.playCapture();
+      triggerCaptureExplosion(move.to as Square);
     } else if (move.flags.includes('k') || move.flags.includes('q')) {
       sounds.playCastle();
     } else if (move.san.includes('=')) {
@@ -196,7 +232,7 @@ const Game = () => {
     } else {
       sounds.playMove();
     }
-  }, [sounds]);
+  }, [sounds, triggerCaptureExplosion]);
 
   const isPromotionMove = useCallback((from: Square, to: Square): boolean => {
     const piece = game.get(from);
@@ -636,7 +672,7 @@ const Game = () => {
                 </div>
               </div>
 
-              <div className="max-w-[min(100%,400px)] mx-auto">
+              <div className="max-w-[min(100%,400px)] mx-auto relative" ref={boardRef}>
                 <Chessboard
                   position={game.fen()}
                   onPieceDrop={onDrop}
@@ -647,6 +683,16 @@ const Game = () => {
                   arePiecesDraggable={isPlayer && isMyTurn && canPlay && !pendingPromotion}
                   customSquareStyles={customSquareStyles}
                 />
+                
+                {/* Capture explosions */}
+                {captureExplosions.map(explosion => (
+                  <CaptureExplosion
+                    key={explosion.id}
+                    x={explosion.x}
+                    y={explosion.y}
+                    onComplete={() => removeCaptureExplosion(explosion.id)}
+                  />
+                ))}
               </div>
 
               <div className="flex items-center justify-between mt-4 p-3 bg-muted rounded-lg">
