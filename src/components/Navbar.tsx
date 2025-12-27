@@ -1,4 +1,4 @@
-import { Bot, Crown, LogIn, LogOut, Trophy, User } from "lucide-react";
+import { Bot, Crown, LogIn, LogOut, Trophy, User, Rocket } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle";
 import { Button } from "./ui/button";
@@ -20,14 +20,14 @@ export const Navbar = () => {
           <Link to="/" className="flex items-center gap-3 group">
             <div className="relative">
               <Crown className="h-8 w-8 text-primary group-hover:animate-float transition-all" />
-              <span className="absolute -top-1 -right-1 text-xs">🎄</span>
+              <Rocket className="absolute -top-1 -right-1 h-4 w-4 text-secondary" />
             </div>
             <div className="flex flex-col">
               <span className="font-display text-lg font-bold tracking-wide text-foreground">
-                Christmas Gambit Cup
+                Checkmate Cup
               </span>
               <span className="text-xs text-muted-foreground font-gamer-body">
-                DPSBE 2K25 •
+                DPSBE 2K25 ♟️
               </span>
             </div>
           </Link>
