@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { Navbar } from "@/components/Navbar";
 import { SpaceBackground } from "@/components/SpaceBackground";
+import { CursorEffects } from "@/components/CursorEffects";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Profile from "./pages/Profile";
@@ -27,6 +28,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <SpaceBackground />
+          <CursorEffects />
           <Routes>
             <Route path="/admin" element={<Admin />} />
             <Route path="*" element={

@@ -120,11 +120,13 @@
 @layer base {
   * {
     @apply border-border;
+    cursor: none !important;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Rajdhani', 'Playfair Display', serif;
+    cursor: none !important;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -133,6 +135,10 @@
 
   .dark body {
     font-family: 'Rajdhani', sans-serif;
+  }
+
+  a, button, [role="button"], input, textarea, select {
+    cursor: none !important;
   }
 }
 
