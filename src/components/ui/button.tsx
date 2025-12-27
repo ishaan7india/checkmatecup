@@ -34,12 +34,50 @@ export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
+  enableEffects?: boolean;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, enableEffects = true, onClick, ...props }, ref) => {
+    const [isSparking, setIsSparking] = React.useState(false);
     const Comp = asChild ? Slot : "button";
-    return <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />;
+
+    const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+      if (enableEffects && !asChild) {
+        setIsSparking(true);
+        setTimeout(() => setIsSparking(false), 500);
+      }
+      onClick?.(e);
+    };
+
+    if (asChild) {
+      return <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />;
+    }
+
+    return (
+      <button
+        className={cn(
+          buttonVariants({ variant, size, className }),
+          enableEffects && "btn-electric btn-firecracker",
+          isSparking && "sparking"
+        )}
+        ref={ref}
+        onClick={handleClick}
+        {...props}
+      >
+        {props.children}
+        {enableEffects && (
+          <>
+            <span className="spark spark-1" />
+            <span className="spark spark-2" />
+            <span className="spark spark-3" />
+            <span className="spark spark-4" />
+            <span className="spark spark-5" />
+            <span className="spark spark-6" />
+          </>
+        )}
+      </button>
+    );
   },
 );
 Button.displayName = "Button";
