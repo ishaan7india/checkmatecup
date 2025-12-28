@@ -12,6 +12,8 @@ import { PlayerAvatar } from "@/components/PlayerAvatar";
 import { useChessSounds } from "@/hooks/useChessSounds";
 import { PromotionDialog } from "@/components/PromotionDialog";
 import { CaptureExplosion } from "@/components/CaptureExplosion";
+import { VictoryConfetti } from "@/components/VictoryConfetti";
+import { CheckmateAnimation } from "@/components/CheckmateAnimation";
 
 type PromotionPiece = 'q' | 'r' | 'b' | 'n';
 
@@ -73,6 +75,8 @@ const Game = () => {
   const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(null);
   const [timeWarningPlayed, setTimeWarningPlayed] = useState(false);
   const [captureExplosions, setCaptureExplosions] = useState<CaptureExplosionData[]>([]);
+  const [showVictoryConfetti, setShowVictoryConfetti] = useState(false);
+  const [checkmateAnimation, setCheckmateAnimation] = useState<{ active: boolean; losingColor: 'white' | 'black' } | null>(null);
 
   const isWhite = profile?.id === gameData?.white_player_id;
   const isBlack = profile?.id === gameData?.black_player_id;
@@ -262,6 +266,10 @@ const Game = () => {
       let result: string = 'in_progress';
       if (gameCopy.isCheckmate()) {
         result = gameCopy.turn() === 'w' ? 'black_wins' : 'white_wins';
+        // Trigger checkmate animation - the losing color is the one whose turn it is
+        setCheckmateAnimation({ active: true, losingColor: gameCopy.turn() === 'w' ? 'white' : 'black' });
+        // Show victory confetti for the winner
+        setShowVictoryConfetti(true);
       } else if (gameCopy.isDraw()) {
         result = 'draw';
       }
@@ -637,6 +645,15 @@ const Game = () => {
 
   return (
     <div className="min-h-screen bg-background p-4">
+      <VictoryConfetti isActive={showVictoryConfetti} />
+      <CheckmateAnimation
+        isActive={checkmateAnimation?.active || false}
+        losingColor={checkmateAnimation?.losingColor || 'white'}
+        onComplete={() => {
+          setCheckmateAnimation(null);
+          setShowVictoryConfetti(false);
+        }}
+      />
       <PromotionDialog
         isOpen={!!pendingPromotion}
         color={myColor}
