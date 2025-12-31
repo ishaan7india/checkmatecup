@@ -14,7 +14,7 @@ Deno.serve(async (req) => {
     const { action, data, adminKey } = await req.json();
     
     // Simple admin key validation
-    if (adminKey !== 'ChristmasGambit2K25Admin') {
+    if (adminKey !== 'CheckmateCup2K25Admin') {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
         const { data: tournament, error } = await supabase
           .from('tournaments')
           .insert({
-            name: data.name || 'Christmas Gambit Cup 2K25',
+            name: data.name || 'Checkmate Cup 2K25',
             format: data.format || 'swiss',
             status: 'registration',
             time_control: data.timeControl || '10 | 5',

@@ -29,7 +29,7 @@ interface Player {
   score: number;
 }
 
-const ADMIN_KEY = "ChristmasGambit2K25Admin";
+const ADMIN_KEY = "CheckmateCup2K25Admin";
 const ADMIN_USERNAME = "Admin";
 const ADMIN_PASSWORD = "P@s$w0rd";
 
