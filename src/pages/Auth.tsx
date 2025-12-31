@@ -192,7 +192,7 @@ const Auth = () => {
     } else {
       toast({
         title: "Account created!",
-        description: "Welcome to the Christmas Gambit Cup!",
+        description: "Welcome to the Checkmate Cup!",
       });
       navigate('/');
     }
@@ -219,7 +219,7 @@ const Auth = () => {
             </div>
           </div>
           <h1 className="font-display text-3xl font-bold text-foreground">
-            Christmas Gambit Cup
+            Checkmate Cup
           </h1>
           <p className="text-muted-foreground mt-2 font-gamer-body">
             2K25 School Chess Tournament

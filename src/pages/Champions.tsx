@@ -105,7 +105,7 @@ const Champions = () => {
             <Crown className="h-20 w-20 text-accent trophy-shine" />
           </div>
           <h1 className="font-display text-4xl md:text-5xl font-bold mb-2 bg-clip-text text-transparent bg-christmas-gradient dark:bg-neon-gradient">
-            Christmas Gambit Cup 2K25
+            Checkmate Cup 2K25
           </h1>
           <p className="text-xl text-muted-foreground font-gamer-body">Champions</p>
         </div>

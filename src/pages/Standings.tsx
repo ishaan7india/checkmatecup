@@ -14,6 +14,7 @@ interface Player {
   score: number | null;
   games_played: number | null;
   games_won: number | null;
+  games_lost: number | null;
   rating: number | null;
 }
 
@@ -61,11 +62,14 @@ const Standings = () => {
     if (tournament) {
       setTournamentName(tournament.name);
       
-      // Check if super league is active (format includes super_league and we're past swiss rounds)
+      // Check if super league is active
+      // Super league only shows when format is swiss_super_league AND current_round > total_rounds (swiss rounds)
       const isSuperLeagueFormat = tournament.format === 'swiss_super_league' || tournament.format === 'swiss_playoffs';
+      const swissRoundsComplete = tournament.current_round && tournament.total_rounds && 
+                                   tournament.current_round > tournament.total_rounds;
       
-      if (isSuperLeagueFormat && tournament.current_round && tournament.total_rounds) {
-        // Check for super league games (games with top 4 players in later rounds)
+      if (isSuperLeagueFormat && swissRoundsComplete) {
+        // Check for super league games (games after swiss rounds)
         const { data: superLeagueGames } = await supabase
           .from('games')
           .select(`
@@ -76,7 +80,7 @@ const Standings = () => {
             round
           `)
           .eq('tournament_id', tournament.id)
-          .gte('round', tournament.current_round);
+          .gt('round', tournament.total_rounds);
 
         if (superLeagueGames && superLeagueGames.length > 0) {
           // Get unique player IDs from super league games
@@ -102,29 +106,45 @@ const Standings = () => {
             }
           });
 
+          // Get swiss scores for these players from tournament_players
+          const { data: tournamentPlayersData } = await supabase
+            .from('tournament_players')
+            .select('player_id, score')
+            .eq('tournament_id', tournament.id)
+            .in('player_id', Array.from(playerIds));
+
+          const swissScores: Record<string, number> = {};
+          tournamentPlayersData?.forEach(tp => {
+            swissScores[tp.player_id] = Number(tp.score) || 0;
+          });
+
           // Fetch super league player profiles
           const { data: slProfiles } = await supabase
             .from('profiles')
-            .select('id, username, full_name, avatar_url, avatar_initials, score, games_played, games_won, rating')
+            .select('id, username, full_name, avatar_url, avatar_initials, score, games_played, games_won, games_lost, rating')
             .in('id', Array.from(playerIds));
 
           if (slProfiles && slProfiles.length > 0) {
             const slPlayersWithScores: SuperLeaguePlayer[] = slProfiles.map(p => ({
               ...p,
-              super_league_score: superLeagueScores[p.id] || 0
+              super_league_score: (swissScores[p.id] || 0) + (superLeagueScores[p.id] || 0)
             })).sort((a, b) => b.super_league_score - a.super_league_score);
 
             setSuperLeaguePlayers(slPlayersWithScores);
             setHasSuperLeague(true);
           }
         }
+      } else {
+        // Not in super league phase, reset the state
+        setHasSuperLeague(false);
+        setSuperLeaguePlayers([]);
       }
     }
 
     // Get ALL profiles ordered by score - no tournament registration required
     const { data } = await supabase
       .from('profiles')
-      .select('id, username, full_name, avatar_url, avatar_initials, score, games_played, games_won, rating')
+      .select('id, username, full_name, avatar_url, avatar_initials, score, games_played, games_won, games_lost, rating')
       .order('score', { ascending: false, nullsFirst: false })
       .order('games_won', { ascending: false, nullsFirst: false });
 
@@ -274,7 +294,7 @@ const Standings = () => {
                     <div className="col-span-2 text-center text-sm">
                       <span className="text-green-500">{player.games_won || 0}</span>
                       <span className="text-muted-foreground">/</span>
-                      <span className="text-red-500">{(player.games_played || 0) - (player.games_won || 0)}</span>
+                      <span className="text-red-500">{player.games_lost || 0}</span>
                     </div>
                   </div>
                 ))}
