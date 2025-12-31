@@ -106,18 +106,6 @@ const Standings = () => {
             }
           });
 
-          // Get swiss scores for these players from tournament_players
-          const { data: tournamentPlayersData } = await supabase
-            .from('tournament_players')
-            .select('player_id, score')
-            .eq('tournament_id', tournament.id)
-            .in('player_id', Array.from(playerIds));
-
-          const swissScores: Record<string, number> = {};
-          tournamentPlayersData?.forEach(tp => {
-            swissScores[tp.player_id] = Number(tp.score) || 0;
-          });
-
           // Fetch super league player profiles
           const { data: slProfiles } = await supabase
             .from('profiles')
@@ -125,10 +113,13 @@ const Standings = () => {
             .in('id', Array.from(playerIds));
 
           if (slProfiles && slProfiles.length > 0) {
-            const slPlayersWithScores: SuperLeaguePlayer[] = slProfiles.map(p => ({
-              ...p,
-              super_league_score: (swissScores[p.id] || 0) + (superLeagueScores[p.id] || 0)
-            })).sort((a, b) => b.super_league_score - a.super_league_score);
+            const slPlayersWithScores: SuperLeaguePlayer[] = slProfiles
+              .map((p) => ({
+                ...p,
+                // Super league points ONLY (no swiss points carried)
+                super_league_score: superLeagueScores[p.id] || 0,
+              }))
+              .sort((a, b) => b.super_league_score - a.super_league_score);
 
             setSuperLeaguePlayers(slPlayersWithScores);
             setHasSuperLeague(true);
@@ -193,7 +184,7 @@ const Standings = () => {
                   <div className="col-span-5">Player</div>
                   <div className="col-span-2 text-center">Rating</div>
                   <div className="col-span-2 text-center">SL Score</div>
-                  <div className="col-span-2 text-center">Total</div>
+                  <div className="col-span-2 text-center">SL Total</div>
                 </div>
 
                 {/* Super League Players */}
@@ -227,7 +218,7 @@ const Standings = () => {
                       <span className="font-bold text-lg text-accent">{player.super_league_score.toFixed(1)}</span>
                     </div>
                     <div className="col-span-2 text-center text-sm text-muted-foreground">
-                      {Number(player.score || 0).toFixed(1)}
+                      {player.super_league_score.toFixed(1)}
                     </div>
                   </div>
                 ))}
