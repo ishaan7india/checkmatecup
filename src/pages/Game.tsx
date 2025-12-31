@@ -274,23 +274,25 @@ const Game = () => {
         result = 'draw';
       }
 
-      supabase
-        .from('games')
-        .update({
-          fen: newFen,
-          pgn: newPgn,
-          result: result as any,
-          white_time_remaining: whiteTime,
-          black_time_remaining: blackTime,
-          ...(result !== 'in_progress' ? { ended_at: new Date().toISOString() } : {}),
-        })
-        .eq('id', gameId)
-        .then(() => {
-          if (result !== 'in_progress') {
-            updatePlayerScores(result);
-            toast({ title: "Game Over!", description: `Result: ${result.replace(/_/g, ' ')}` });
-          }
-        });
+      const newFen = gameCopy.fen();
+      const newPgn = gameCopy.pgn();
+
+      if (result === 'in_progress') {
+        supabase
+          .from('games')
+          .update({
+            fen: newFen,
+            pgn: newPgn,
+            result: result as any,
+            white_time_remaining: whiteTime,
+            black_time_remaining: blackTime,
+          })
+          .eq('id', gameId);
+      } else {
+        // Finalize (updates game + both players' scores/ratings/losses on the backend)
+        finalizeGame(result as any, newFen, newPgn);
+        toast({ title: "Game Over!", description: `Result: ${result.replace(/_/g, ' ')}` });
+      }
 
       return true;
     } catch {
@@ -399,139 +401,30 @@ const Game = () => {
     return styles;
   }, [selectedSquare, legalMoves, game, lastMove]);
 
-  const updatePlayerScores = async (result: string) => {
-    if (!gameData) return;
+  const finalizeGame = async (finalResult: 'white_wins' | 'black_wins' | 'draw', fen?: string, pgn?: string) => {
+    if (!gameId) return;
 
-    let whiteScore = 0;
-    let blackScore = 0;
-    let whiteRatingChange = 0;
-    let blackRatingChange = 0;
+    try {
+      const { data, error } = await supabase.functions.invoke('finalize-game', {
+        body: {
+          gameId,
+          result: finalResult,
+          fen: fen ?? game.fen(),
+          pgn: pgn ?? game.pgn(),
+          whiteTimeRemaining: whiteTime,
+          blackTimeRemaining: blackTime,
+        },
+      });
 
-    // Get current ratings
-    const { data: whiteProfile } = await supabase
-      .from('profiles')
-      .select('rating')
-      .eq('id', gameData.white_player_id)
-      .single();
-
-    const { data: blackProfile } = await supabase
-      .from('profiles')
-      .select('rating')
-      .eq('id', gameData.black_player_id)
-      .single();
-
-    const whiteRating = whiteProfile?.rating || 1200;
-    const blackRating = blackProfile?.rating || 1200;
-
-    // Calculate expected scores (Elo formula)
-    const expectedWhite = 1 / (1 + Math.pow(10, (blackRating - whiteRating) / 400));
-    const expectedBlack = 1 - expectedWhite;
-
-    const K = 32; // K-factor
-
-    if (result === 'white_wins') {
-      whiteScore = 1;
-      whiteRatingChange = Math.round(K * (1 - expectedWhite));
-      blackRatingChange = Math.round(K * (0 - expectedBlack));
-    } else if (result === 'black_wins') {
-      blackScore = 1;
-      whiteRatingChange = Math.round(K * (0 - expectedWhite));
-      blackRatingChange = Math.round(K * (1 - expectedBlack));
-    } else if (result === 'draw') {
-      whiteScore = 0.5;
-      blackScore = 0.5;
-      whiteRatingChange = Math.round(K * (0.5 - expectedWhite));
-      blackRatingChange = Math.round(K * (0.5 - expectedBlack));
-    }
-
-    // Update tournament scores
-    const { data: whiteTp } = await supabase
-      .from('tournament_players')
-      .select('score')
-      .eq('tournament_id', gameData.tournament_id)
-      .eq('player_id', gameData.white_player_id)
-      .single();
-
-    const { data: blackTp } = await supabase
-      .from('tournament_players')
-      .select('score')
-      .eq('tournament_id', gameData.tournament_id)
-      .eq('player_id', gameData.black_player_id)
-      .single();
-
-    if (whiteTp) {
-      await supabase
-        .from('tournament_players')
-        .update({ score: Number(whiteTp.score) + whiteScore })
-        .eq('tournament_id', gameData.tournament_id)
-        .eq('player_id', gameData.white_player_id);
-    }
-
-    if (blackTp) {
-      await supabase
-        .from('tournament_players')
-        .update({ score: Number(blackTp.score) + blackScore })
-        .eq('tournament_id', gameData.tournament_id)
-        .eq('player_id', gameData.black_player_id);
-    }
-
-    // Update player profiles (games_played, games_won, games_lost, score, rating)
-    const { data: whiteProfileData } = await supabase
-      .from('profiles')
-      .select('games_played, games_won, games_lost, games_drawn, score')
-      .eq('id', gameData.white_player_id)
-      .single();
-
-    const { data: blackProfileData } = await supabase
-      .from('profiles')
-      .select('games_played, games_won, games_lost, games_drawn, score')
-      .eq('id', gameData.black_player_id)
-      .single();
-
-    if (whiteProfileData) {
-      const whiteWon = result === 'white_wins' ? 1 : 0;
-      const whiteLost = result === 'black_wins' ? 1 : 0;
-      const whiteDrawn = result === 'draw' ? 1 : 0;
-      
-      await supabase
-        .from('profiles')
-        .update({ 
-          rating: whiteRating + whiteRatingChange,
-          games_played: (whiteProfileData.games_played || 0) + 1,
-          games_won: (whiteProfileData.games_won || 0) + whiteWon,
-          games_lost: (whiteProfileData.games_lost || 0) + whiteLost,
-          games_drawn: (whiteProfileData.games_drawn || 0) + whiteDrawn,
-          score: Number(whiteProfileData.score || 0) + whiteScore,
-        })
-        .eq('id', gameData.white_player_id);
-    } else {
-      await supabase
-        .from('profiles')
-        .update({ rating: whiteRating + whiteRatingChange })
-        .eq('id', gameData.white_player_id);
-    }
-
-    if (blackProfileData) {
-      const blackWon = result === 'black_wins' ? 1 : 0;
-      const blackLost = result === 'white_wins' ? 1 : 0;
-      const blackDrawn = result === 'draw' ? 1 : 0;
-      
-      await supabase
-        .from('profiles')
-        .update({ 
-          rating: blackRating + blackRatingChange,
-          games_played: (blackProfileData.games_played || 0) + 1,
-          games_won: (blackProfileData.games_won || 0) + blackWon,
-          games_lost: (blackProfileData.games_lost || 0) + blackLost,
-          games_drawn: (blackProfileData.games_drawn || 0) + blackDrawn,
-          score: Number(blackProfileData.score || 0) + blackScore,
-        })
-        .eq('id', gameData.black_player_id);
-    } else {
-      await supabase
-        .from('profiles')
-        .update({ rating: blackRating + blackRatingChange })
-        .eq('id', gameData.black_player_id);
+      if (error) throw new Error(error.message || 'Failed to finalize game');
+      if (data?.error) throw new Error(data.error);
+    } catch (e) {
+      console.error('finalize-game error:', e);
+      toast({
+        variant: 'destructive',
+        title: 'Standings update failed',
+        description: 'Game result saved, but scores/ratings did not update. Please retry.',
+      });
     }
   };
 
@@ -568,18 +461,9 @@ const Game = () => {
 
   const resign = async () => {
     if (!gameData || !isPlayer || !gameStarted) return;
-    
-    const result = isWhite ? 'black_wins' : 'white_wins';
-    
-    await supabase
-      .from('games')
-      .update({
-        result: result as any,
-        ended_at: new Date().toISOString(),
-      })
-      .eq('id', gameId);
 
-    await updatePlayerScores(result);
+    const result = isWhite ? 'black_wins' : 'white_wins';
+    await finalizeGame(result);
     toast({ title: "You resigned", description: "Better luck next time!" });
   };
 
@@ -596,17 +480,8 @@ const Game = () => {
 
   const acceptDraw = async () => {
     if (!gameData || !isPlayer || !canPlay) return;
-    
-    await supabase
-      .from('games')
-      .update({
-        result: 'draw' as any,
-        ended_at: new Date().toISOString(),
-        draw_offered_by: null,
-      })
-      .eq('id', gameId);
 
-    await updatePlayerScores('draw');
+    await finalizeGame('draw');
     toast({ title: "Draw accepted", description: "Game ended in a draw!" });
   };
 
