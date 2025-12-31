@@ -234,7 +234,19 @@ const Admin = () => {
 
   const generatePairings = async () => {
     if (!tournament) return;
-    
+
+    const nextRound = (tournament.current_round || 0) + 1;
+
+    // Prevent accidentally generating pairings twice for the same round
+    const { data: existing } = await supabase
+      .from('games')
+      .select('id')
+      .eq('tournament_id', tournament.id)
+      .eq('round', nextRound)
+      .limit(1);
+
+    if (existing && existing.length > 0) return;
+
     const { data: tournamentPlayers } = await supabase
       .from('tournament_players')
       .select('player_id, score')
@@ -244,19 +256,75 @@ const Admin = () => {
 
     if (!tournamentPlayers || tournamentPlayers.length < 2) return;
 
-    const playerIds = tournamentPlayers.map(p => p.player_id);
+    // Track previously played pairings to avoid repeats
+    const { data: previousGames } = await supabase
+      .from('games')
+      .select('white_player_id, black_player_id')
+      .eq('tournament_id', tournament.id)
+      .lt('round', nextRound)
+      .in('result', ['white_wins', 'black_wins', 'draw', 'pending', 'in_progress']);
 
-    for (let i = 0; i < playerIds.length - 1; i += 2) {
+    const playedPairs = new Set<string>();
+    (previousGames || []).forEach((g) => {
+      const a = String(g.white_player_id);
+      const b = String(g.black_player_id);
+      const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+      playedPairs.add(key);
+    });
+
+    // Group by score then shuffle within ties so round 2 isn't identical to round 1.
+    const byScore = new Map<number, string[]>();
+    tournamentPlayers.forEach((p) => {
+      const s = Number(p.score || 0);
+      byScore.set(s, [...(byScore.get(s) || []), p.player_id]);
+    });
+
+    const sortedScores = Array.from(byScore.keys()).sort((a, b) => b - a);
+    const orderedPlayerIds: string[] = [];
+    sortedScores.forEach((s) => {
+      const group = byScore.get(s) || [];
+      group.sort(() => Math.random() - 0.5);
+      orderedPlayerIds.push(...group);
+    });
+
+    // Pair sequentially, but swap if it would create a rematch.
+    for (let i = 0; i < orderedPlayerIds.length - 1; i += 2) {
+      const a = orderedPlayerIds[i];
+      let b = orderedPlayerIds[i + 1];
+
+      const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+      if (playedPairs.has(key)) {
+        let swapIndex = -1;
+        for (let j = i + 2; j < orderedPlayerIds.length; j++) {
+          const candidate = orderedPlayerIds[j];
+          const k = a < candidate ? `${a}:${candidate}` : `${candidate}:${a}`;
+          if (!playedPairs.has(k)) {
+            swapIndex = j;
+            break;
+          }
+        }
+        if (swapIndex !== -1) {
+          orderedPlayerIds[i + 1] = orderedPlayerIds[swapIndex];
+          orderedPlayerIds[swapIndex] = b;
+          b = orderedPlayerIds[i + 1];
+        }
+      }
+
+      // Alternate colors a bit across rounds
+      const whitePlayerId = (Math.floor(i / 2) + nextRound) % 2 === 0 ? a : b;
+      const blackPlayerId = whitePlayerId === a ? b : a;
+
       await adminAction('createGame', {
         tournamentId: tournament.id,
-        round: (tournament.current_round || 0) + 1,
-        whitePlayerId: playerIds[i],
-        blackPlayerId: playerIds[i + 1],
+        round: nextRound,
+        whitePlayerId,
+        blackPlayerId,
       });
     }
 
-    if (playerIds.length % 2 === 1) {
-      const byePlayer = playerIds[playerIds.length - 1];
+    // Bye
+    if (orderedPlayerIds.length % 2 === 1) {
+      const byePlayer = orderedPlayerIds[orderedPlayerIds.length - 1];
       const currentScore = tournamentPlayers[tournamentPlayers.length - 1].score;
       await adminAction('updatePlayerScore', {
         tournamentId: tournament.id,
