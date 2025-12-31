@@ -29,7 +29,7 @@ interface Player {
   score: number;
 }
 
-const ADMIN_KEY = "CheckmateCup2K25Admin";
+const ADMIN_KEY = "ChristmasGambit2K25Admin";
 const ADMIN_USERNAME = "Admin";
 const ADMIN_PASSWORD = "P@s$w0rd";
 
@@ -66,11 +66,14 @@ const Admin = () => {
   }, [isAuthenticated]);
 
   const adminAction = async (action: string, data: Record<string, unknown> = {}) => {
-    const { data: result, error } = await supabase.functions.invoke('admin-action', {
-      body: { action, data, adminKey: ADMIN_KEY }
+    const { data: result, error } = await supabase.functions.invoke("admin-action", {
+      body: { action, data, adminKey: ADMIN_KEY },
     });
-    
-    if (error) throw error;
+
+    if (error) {
+      console.error("admin-action invoke error:", error);
+      throw new Error(error.message || "Admin action failed");
+    }
     if (result?.error) throw new Error(result.error);
     return result;
   };
